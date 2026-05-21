@@ -2,7 +2,7 @@ export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
 
 export type AppointmentType = 'telehealth' | 'in_person';
 
-export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'in-call';
 
 export interface Profile {
   id: string;

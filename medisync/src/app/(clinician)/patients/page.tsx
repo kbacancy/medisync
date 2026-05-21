@@ -1,11 +1,21 @@
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { createClient } from '@supabase/supabase-js'
 import { TableSkeleton } from '@/components/ui/loading-skeleton'
 import { PatientsTable } from '@/components/adherence/PatientsTable'
+import { AddPatientButton } from '@/components/adherence/AddPatientButton'
 import type { PatientTableRow } from '@/components/adherence/PatientsTable'
 import type { RiskLevel } from '@/types'
+
+export const dynamic = 'force-dynamic'
+
+// Service role bypasses RLS entirely — safe here because the layout already
+// validates the session and confirms the user has role = 'clinician'.
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 const SEED_PATIENTS: PatientTableRow[] = [
   { id: '1', full_name: 'Maria Santos',  active_med_count: 3, pdc_score: 82, inventory_days: 18, risk_level: 'MODERATE' },
@@ -19,9 +29,9 @@ const SEED_PATIENTS: PatientTableRow[] = [
 ]
 
 async function PatientsData() {
-  const supabase = await createClient()
+  const supabase = getServiceClient()
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('patients')
     .select(`
       id,
@@ -34,26 +44,29 @@ async function PatientsData() {
     .order('updated_at', { ascending: false })
     .limit(50)
 
+  if (error) console.error('[PatientsData] query error:', error.message)
+
   type RawRow = {
     id: string
     risk_level: RiskLevel
-    profile: { full_name: string } | null
+    profile: { full_name: string } | { full_name: string }[] | null
     pdc: { score: number }[]
     rx: { id: string; status: string }[]
     dispense: { remaining_count: number; dispensed_at: string }[]
   }
 
   const rows: PatientTableRow[] =
-    data && (data as RawRow[]).length > 0
+    data && data.length > 0
       ? (data as RawRow[]).map((p) => {
           const activeRx = (p.rx ?? []).filter((r) => r.status === 'active')
           const latestDispense = [...(p.dispense ?? [])].sort(
             (a, b) =>
               new Date(b.dispensed_at).getTime() - new Date(a.dispensed_at).getTime()
           )[0]
+          const profileObj = Array.isArray(p.profile) ? p.profile[0] : p.profile
           return {
             id: p.id,
-            full_name: p.profile?.full_name ?? 'Unknown',
+            full_name: profileObj?.full_name || 'Unknown',
             active_med_count: activeRx.length,
             pdc_score: p.pdc?.[0]?.score ?? 0,
             inventory_days: latestDispense?.remaining_count ?? 20,
@@ -73,10 +86,7 @@ export default function PatientsPage() {
           <h1 className="text-xl font-semibold text-gray-900">Patients</h1>
           <p className="text-sm text-gray-500 mt-0.5">Adherence monitoring dashboard</p>
         </div>
-        <Button className="bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white gap-1.5">
-          <Plus className="size-4" />
-          Add Patient
-        </Button>
+        <AddPatientButton />
       </div>
 
       <Suspense fallback={<TableSkeleton rows={8} />}>

@@ -151,7 +151,12 @@ export default function CallScreen() {
 
         if (cancelled) return;
 
-        // 3. Initialise Daily.co call object
+        // 3. Initialise Daily.co call object — skip when using the dev mock
+        if (roomUrl?.startsWith('https://mock.daily.co/')) {
+          setCallState('waiting');
+          return;
+        }
+
         const DailyIframe = (await import('@daily-co/react-native-daily-js')).default;
         if (cancelled) return;
 

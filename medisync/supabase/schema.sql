@@ -169,8 +169,29 @@ create table if not exists appointments (
   reason            text not null default '',
   status            appointment_status not null default 'scheduled',
   notes             text,
+  room_url          text,
+  room_name         text,
+  started_at        timestamptz,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
+);
+
+-- Telehealth columns — safe to run even if table already existed without them
+alter table appointments add column if not exists room_url     text;
+alter table appointments add column if not exists room_name    text;
+alter table appointments add column if not exists started_at   timestamptz;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- TABLE: push_subscriptions
+-- Stores Expo push tokens for mobile notifications.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists push_subscriptions (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references profiles(id) on delete cascade,
+  token       text not null,
+  platform    text not null check (platform in ('ios', 'android', 'web')),
+  updated_at  timestamptz not null default now(),
+  unique (user_id)
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -216,6 +237,7 @@ create index if not exists idx_appointments_patient_id     on appointments(patie
 create index if not exists idx_appointments_clinician_id   on appointments(clinician_id);
 create index if not exists idx_appointments_scheduled_at   on appointments(scheduled_at);
 create index if not exists idx_overrides_prescription_id   on prescription_overrides(prescription_id);
+create index if not exists idx_push_subscriptions_user_id  on push_subscriptions(user_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ROW LEVEL SECURITY
@@ -228,13 +250,27 @@ alter table adherence_logs        enable row level security;
 alter table pdc_scores            enable row level security;
 alter table appointments          enable row level security;
 alter table drug_interactions     enable row level security;
+alter table push_subscriptions    enable row level security;
 alter table prescription_overrides enable row level security;
 
--- profiles: users can read/write their own row
-drop policy if exists "profiles_self_read"   on profiles;
-drop policy if exists "profiles_self_write"  on profiles;
-create policy "profiles_self_read"  on profiles for select using (auth.uid() = id);
-create policy "profiles_self_write" on profiles for update using (auth.uid() = id);
+-- profiles: self read/write; any authenticated user can read clinician profiles;
+--           clinicians can read patient profiles (needed for name display in dashboard/schedule)
+drop policy if exists "profiles_self_read"                   on profiles;
+drop policy if exists "profiles_self_write"                  on profiles;
+drop policy if exists "profiles_clinician_read"              on profiles;
+drop policy if exists "profiles_patient_read_by_clinician"   on profiles;
+create policy "profiles_self_read"      on profiles for select using (auth.uid() = id);
+create policy "profiles_clinician_read" on profiles for select using (role = 'clinician');
+create policy "profiles_self_write"     on profiles for update using (auth.uid() = id);
+create policy "profiles_patient_read_by_clinician" on profiles
+  for select
+  using (
+    role = 'patient'
+    and exists (
+      select 1 from profiles p
+      where p.id = auth.uid() and p.role = 'clinician'
+    )
+  );
 
 -- profiles INSERT: permissive policy so the handle_new_user trigger can
 -- insert without a JWT context. Safe because profiles.id has FK → auth.users(id).
@@ -375,6 +411,12 @@ create policy "overrides_clinician_all" on prescription_overrides for all
       where profiles.id = auth.uid() and profiles.role = 'clinician'
     )
   );
+
+-- push_subscriptions: users manage their own token; service role reads all (for push delivery)
+drop policy if exists "push_subs_self_all" on push_subscriptions;
+create policy "push_subs_self_all" on push_subscriptions for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- TRIGGER: auto-create profile on auth.users insert

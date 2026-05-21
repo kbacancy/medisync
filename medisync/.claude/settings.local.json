@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(ls D:/MediSync/medisync/.env*)",
-      "Bash(node -e \"const wp = require\\('web-push'\\); const keys = wp.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', keys.publicKey\\); console.log\\('PRIVATE:', keys.privateKey\\);\")"
+      "Bash(node -e \"const wp = require\\('web-push'\\); const keys = wp.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', keys.publicKey\\); console.log\\('PRIVATE:', keys.privateKey\\);\")",
+      "Bash(npx expo *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\MediSync\\\\medisync\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Get-Content *)",
+      "Bash(npx supabase *)",
+      "Bash(node *)"
     ]
   }
 }

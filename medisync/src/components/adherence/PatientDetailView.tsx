@@ -153,16 +153,18 @@ function AlertIcon({ severity }: { severity: AlertEntry['severity'] }) {
 
 function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {
   const map: Record<AppointmentStatus, string> = {
-    scheduled: 'bg-blue-50 text-blue-700 border-blue-200',
-    completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    cancelled: 'bg-gray-100 text-gray-500 border-gray-200',
-    no_show:   'bg-red-50 text-red-700 border-red-200',
+    scheduled:  'bg-blue-50 text-blue-700 border-blue-200',
+    completed:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cancelled:  'bg-gray-100 text-gray-500 border-gray-200',
+    no_show:    'bg-red-50 text-red-700 border-red-200',
+    'in-call':  'bg-purple-50 text-purple-700 border-purple-200',
   }
   const labels: Record<AppointmentStatus, string> = {
-    scheduled: 'Scheduled',
-    completed: 'Completed',
-    cancelled: 'Cancelled',
-    no_show:   'No Show',
+    scheduled:  'Scheduled',
+    completed:  'Completed',
+    cancelled:  'Cancelled',
+    no_show:    'No Show',
+    'in-call':  'In Call',
   }
   return (
     <span
@@ -478,7 +480,7 @@ export function PatientDetailView({
                     border: '1px solid #e5e7eb',
                     fontSize: '12px',
                   }}
-                  formatter={(v: number) => [`${v}%`, 'PDC']}
+                  formatter={(v) => [v != null ? `${v}%` : '', 'PDC']}
                 />
                 <Area
                   type="monotone"

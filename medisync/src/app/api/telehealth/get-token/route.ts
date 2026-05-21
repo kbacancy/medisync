@@ -26,6 +26,13 @@ export async function POST(request: Request) {
 
   const { roomName, userId, userName, isOwner } = parsed.data
 
+  // ── Dev mock: return a stub token ─────────────────────────────────────────
+  if (process.env.DAILY_MOCK === 'true') {
+    return NextResponse.json({
+      token: `mock-token-${roomName}-${userId}-${isOwner ? 'owner' : 'guest'}`,
+    })
+  }
+
   const dailyRes = await fetch('https://api.daily.co/v1/meeting-tokens', {
     method: 'POST',
     headers: {
@@ -38,7 +45,6 @@ export async function POST(request: Request) {
         user_name: userName,
         user_id: userId,
         is_owner: isOwner,
-        enable_screenshare: isOwner,
         start_video_off: false,
         start_audio_off: false,
       },

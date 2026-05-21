@@ -34,7 +34,30 @@ export async function POST(request: Request) {
 
   const { appointmentId, patientId, doctorId: _doctorId, doctorName } = parsed.data
 
-  // Create a private Daily.co room that expires in 1 hour
+  // ── Dev mock: skip Daily.co entirely ──────────────────────────────────────
+  if (process.env.DAILY_MOCK === 'true') {
+    const mockRoom = {
+      url: `https://mock.daily.co/medisync-${appointmentId}`,
+      name: `medisync-${appointmentId}`,
+    }
+    const supabase = getServiceClient()
+    await supabase
+      .from('appointments')
+      .update({
+        room_url: mockRoom.url,
+        room_name: mockRoom.name,
+        status: 'in-call',
+        started_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId)
+    return NextResponse.json({
+      roomUrl: mockRoom.url,
+      roomName: mockRoom.name,
+      appointmentId,
+    })
+  }
+
+  // Create a Daily.co room that expires in 1 hour
   const dailyRes = await fetch('https://api.daily.co/v1/rooms', {
     method: 'POST',
     headers: {
@@ -43,11 +66,9 @@ export async function POST(request: Request) {
     },
     body: JSON.stringify({
       name: `medisync-${appointmentId}`,
-      privacy: 'private',
+      privacy: 'public',
       properties: {
         max_participants: 2,
-        enable_chat: true,
-        enable_screenshare: true,
         exp: Math.floor(Date.now() / 1000) + 3600,
         eject_at_room_exp: true,
       },

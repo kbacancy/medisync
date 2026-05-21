@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { subDays, format } from 'date-fns'
 import { PatientDetailView } from '@/components/adherence/PatientDetailView'
 import type {
@@ -99,26 +100,6 @@ function getSeedPatient(id: string): PatientDetail {
   )
 }
 
-function getSeedAlerts(id: string): AlertEntry[] {
-  const map: Record<string, AlertEntry[]> = {
-    '2': [
-      { id: 'a1', severity: 'critical', message: 'INR below therapeutic range — warfarin dose review recommended.' },
-      { id: 'a2', severity: 'critical', message: 'Refill overdue for Furosemide. Patient has 0 days remaining supply.' },
-      { id: 'a3', severity: 'warning',  message: 'PDC score dropped below 60% — critical non-adherence threshold.' },
-    ],
-    '4': [
-      { id: 'a1', severity: 'warning',  message: 'Blood pressure trending high over last 3 readings.' },
-      { id: 'a2', severity: 'warning',  message: 'Low supply detected — refill recommended within 5 days.' },
-    ],
-    '7': [
-      { id: 'a1', severity: 'warning',  message: 'Polypharmacy detected. Review for potential interactions.' },
-      { id: 'a2', severity: 'critical', message: 'Refill overdue. Patient has not collected prescription.' },
-    ],
-  }
-  return map[id] ?? [
-    { id: 'a1', severity: 'info', message: 'No critical alerts. Continue regular monitoring.' },
-  ]
-}
 
 function getSeedAppointments(id: string): AppointmentEntry[] {
   const base = new Date()
@@ -158,15 +139,23 @@ function getSeedAppointments(id: string): AppointmentEntry[] {
   ]
 }
 
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
 export default async function PatientDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const sessionClient = await createClient()
+  const supabase = getServiceClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await sessionClient.auth.getUser()
   const doctorId = user?.id ?? 'seed-doctor-1'
 
   const thirtyDaysAgo = subDays(new Date(), 30).toISOString()
@@ -215,7 +204,7 @@ export default async function PatientDetailPage({
     blood_type: string | null
     blood_pressure: string | null
     heart_rate: number | null
-    profile: { full_name: string } | null
+    profile: { full_name: string } | { full_name: string }[] | null
   }
   type RawRx = {
     id: string
@@ -234,25 +223,24 @@ export default async function PatientDetailPage({
     scheduled_at: string
     type: 'telehealth' | 'in_person'
     reason: string
-    status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+    status: 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'in-call'
     notes?: string | null
   }
 
-  const useSeed = !patientData
-  if (!useSeed && !patientData) return notFound()
+  if (!patientData) return notFound()
 
-  const patient: PatientDetail = patientData
-    ? {
-        id: (patientData as RawPatient).id,
-        full_name: (patientData as RawPatient).profile?.full_name ?? 'Unknown',
-        date_of_birth: (patientData as RawPatient).date_of_birth,
-        gender: (patientData as RawPatient).gender,
-        blood_type: (patientData as RawPatient).blood_type,
-        blood_pressure: (patientData as RawPatient).blood_pressure,
-        heart_rate: (patientData as RawPatient).heart_rate,
-        risk_level: (patientData as RawPatient).risk_level,
-      }
-    : getSeedPatient(id)
+  const rawPatient = patientData as RawPatient
+  const rawProfile = Array.isArray(rawPatient?.profile) ? rawPatient.profile[0] : rawPatient?.profile
+  const patient: PatientDetail = {
+    id: rawPatient.id,
+    full_name: rawProfile?.full_name || 'Patient',
+    date_of_birth: rawPatient.date_of_birth,
+    gender: rawPatient.gender,
+    blood_type: rawPatient.blood_type,
+    blood_pressure: rawPatient.blood_pressure,
+    heart_rate: rawPatient.heart_rate,
+    risk_level: rawPatient.risk_level,
+  }
 
   const seedPrescriptions = SEED_PRESCRIPTIONS_BY_ID[id] ?? SEED_PRESCRIPTIONS_BY_ID['1']
 
@@ -330,7 +318,38 @@ export default async function PatientDetailPage({
         }))
       : getSeedAppointments(id)
 
-  const alerts: AlertEntry[] = getSeedAlerts(id)
+  const alerts: AlertEntry[] = (() => {
+    const derived: AlertEntry[] = []
+
+    if (patient.risk_level === 'CRITICAL') {
+      derived.push({ id: 'risk-critical', severity: 'critical', message: 'Patient classified as CRITICAL risk — immediate clinical attention required.' })
+    } else if (patient.risk_level === 'HIGH') {
+      derived.push({ id: 'risk-high', severity: 'warning', message: 'Patient classified as HIGH risk — close monitoring recommended.' })
+    }
+
+    if (overallPDC < 60 && rxIds.length > 0) {
+      derived.push({ id: 'pdc-low', severity: 'warning', message: `PDC score ${overallPDC}% — below 60% critical non-adherence threshold.` })
+    }
+
+    const activePrescriptions = prescriptions.filter((p) => p.status === 'active')
+    activePrescriptions.forEach((rx) => {
+      if (rx.inventory_days === 0) {
+        derived.push({ id: `refill-${rx.id}`, severity: 'critical', message: `${rx.medication_name}: refill overdue — 0 days supply remaining.` })
+      } else if (rx.inventory_days <= 5) {
+        derived.push({ id: `low-${rx.id}`, severity: 'warning', message: `${rx.medication_name}: low supply — only ${rx.inventory_days} day(s) remaining.` })
+      }
+    })
+
+    if (activePrescriptions.length >= 5) {
+      derived.push({ id: 'polypharmacy', severity: 'warning', message: `Polypharmacy detected — ${activePrescriptions.length} active prescriptions. Review for potential interactions.` })
+    }
+
+    if (derived.length === 0) {
+      derived.push({ id: 'ok', severity: 'info', message: 'No critical alerts. Continue regular monitoring.' })
+    }
+
+    return derived
+  })()
 
   return (
     <PatientDetailView

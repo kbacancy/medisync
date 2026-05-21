@@ -9,12 +9,13 @@ import { VideoCallPanel } from './VideoCallPanel'
 import { ClinicalNotes } from './ClinicalNotes'
 import { PatientEHRPanel } from './PatientEHRPanel'
 import { DDIWarningBanner } from './DDIWarningBanner'
+import { NewAppointmentModal } from './NewAppointmentModal'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface WaitingPatient {
+export interface WaitingPatient {
   id: string
   name: string
   initials: string
@@ -69,7 +70,7 @@ interface ActiveCall {
 }
 
 interface TelehealthCenterProps {
-  initialPatients?: WaitingPatient[]
+  initialPatients?: WaitingPatient[] | undefined  // undefined → use seed fallback
   initialUpcoming?: UpcomingSlot[]
   initialActivePatient?: ActivePatientEHR
 }
@@ -228,18 +229,21 @@ function NoCallPlaceholder() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function TelehealthCenter({
-  initialPatients = SEED_WAITING,
+  initialPatients,
   initialUpcoming = SEED_UPCOMING,
   initialActivePatient = SEED_ACTIVE,
 }: TelehealthCenterProps) {
+  const resolvedPatients = initialPatients ?? SEED_WAITING
+  const [patients, setPatients] = useState<WaitingPatient[]>(resolvedPatients)
   const [activeId, setActiveId] = useState(
-    initialPatients[0]?.id ?? ''
+    resolvedPatients[0]?.id ?? ''
   )
   const [ddiVisible, setDdiVisible] = useState(false)
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null)
   const [startingCallForId, setStartingCallForId] = useState<string | null>(null)
   const [doctorId, setDoctorId] = useState('')
   const [doctorName, setDoctorName] = useState('Doctor')
+  const [newApptOpen, setNewApptOpen] = useState(false)
 
   // Fetch the logged-in clinician's identity once on mount
   useEffect(() => {
@@ -260,7 +264,7 @@ export function TelehealthCenter({
   }, [])
 
   const activePatient = initialActivePatient
-  const waitingCount = initialPatients.length
+  const waitingCount = patients.length
 
   const handleStartCall = async (patient: WaitingPatient) => {
     if (!patient.appointmentId) {
@@ -319,6 +323,16 @@ export function TelehealthCenter({
         onCancel={() => setDdiVisible(false)}
       />
 
+      <NewAppointmentModal
+        open={newApptOpen}
+        onClose={() => setNewApptOpen(false)}
+        onCreated={(newPatient) => {
+          setPatients((prev) => [...prev, newPatient])
+          setNewApptOpen(false)
+          toast.success(`${newPatient.name} added to the waiting room`)
+        }}
+      />
+
       <div className="flex h-full bg-[#F4F6F8] overflow-hidden">
         {/* ── Left Panel — Waiting Room ── */}
         <div className="w-[280px] bg-white border-r border-gray-100 flex flex-col shrink-0">
@@ -330,7 +344,7 @@ export function TelehealthCenter({
           </div>
 
           <div className="overflow-y-auto flex-1 px-2 py-2">
-            {initialPatients.map((patient) => (
+            {patients.map((patient) => (
               <WaitingRoomCard
                 key={patient.id}
                 {...patient}
@@ -370,7 +384,7 @@ export function TelehealthCenter({
           <div className="px-3 pb-4 pt-2 border-t border-gray-100 shrink-0">
             <Button
               className="w-full bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white gap-1.5 text-sm"
-              onClick={() => toast.info('New appointment — coming in Phase 4')}
+              onClick={() => setNewApptOpen(true)}
             >
               <Plus className="size-4" />
               New Appointment

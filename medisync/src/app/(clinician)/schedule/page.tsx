@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
-import { Plus, Calendar, Video, MapPin } from 'lucide-react';
+import { Calendar, Video, MapPin } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CreateAppointmentButton } from '@/components/schedule/CreateAppointmentButton';
 import type { AppointmentStatus, AppointmentType } from '@/types';
 import { format } from 'date-fns';
 
@@ -13,7 +15,7 @@ interface AppointmentRow {
   type: AppointmentType;
   reason: string;
   status: AppointmentStatus;
-  patient: { full_name: string } | { full_name: string }[] | null;
+  patient: { profile: { full_name: string } | { full_name: string }[] | null } | { profile: { full_name: string } | { full_name: string }[] | null }[] | null;
 }
 
 interface DisplayAppointment {
@@ -42,15 +44,23 @@ function getInitials(name: string): string {
 }
 
 const statusConfig: Record<AppointmentStatus, { label: string; className: string }> = {
-  scheduled: { label: 'Scheduled', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Completed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-50 text-gray-600 border-gray-200' },
-  no_show: { label: 'No Show', className: 'bg-red-50 text-red-700 border-red-200' },
+  scheduled:  { label: 'Scheduled',  className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  completed:  { label: 'Completed',  className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  cancelled:  { label: 'Cancelled',  className: 'bg-gray-50 text-gray-600 border-gray-200' },
+  no_show:    { label: 'No Show',    className: 'bg-red-50 text-red-700 border-red-200' },
+  'in-call':  { label: 'In Call',    className: 'bg-purple-50 text-purple-700 border-purple-200' },
 };
 
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
 export default async function SchedulePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const sessionClient = await createClient();
+  const { data: { user } } = await sessionClient.auth.getUser();
   if (!user) redirect('/login');
 
   let appointments: DisplayAppointment[] = SEED_APPOINTMENTS;
@@ -58,6 +68,7 @@ export default async function SchedulePage() {
   try {
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const supabase = getServiceClient();
 
     const { data } = await supabase
       .from('appointments')
@@ -68,7 +79,7 @@ export default async function SchedulePage() {
         type,
         reason,
         status,
-        patient:profiles!patient_id(full_name)
+        patient:patients!patient_id(profile:profiles!profile_id(full_name))
       `)
       .gte('scheduled_at', now.toISOString())
       .lte('scheduled_at', sevenDaysLater.toISOString())
@@ -76,7 +87,10 @@ export default async function SchedulePage() {
 
     if (data && data.length > 0) {
       appointments = (data as AppointmentRow[]).map((row) => {
-        const patientObj = Array.isArray(row.patient) ? row.patient[0] : row.patient;
+        const patientRec = Array.isArray(row.patient) ? row.patient[0] : row.patient;
+        const profileObj = patientRec?.profile
+          ? (Array.isArray(patientRec.profile) ? patientRec.profile[0] : patientRec.profile)
+          : null;
         const d = new Date(row.scheduled_at);
         const hours = d.getHours();
         const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -86,7 +100,7 @@ export default async function SchedulePage() {
           id: row.id,
           time: `${displayHour.toString().padStart(2, '0')}:${mm}`,
           ampm,
-          patient_name: patientObj?.full_name ?? 'Unknown',
+          patient_name: profileObj?.full_name ?? 'Unknown',
           reason: row.reason,
           type: row.type,
           status: row.status,
@@ -107,10 +121,7 @@ export default async function SchedulePage() {
           <h2 className="text-2xl font-bold text-gray-900">Schedule</h2>
           <p className="text-sm text-gray-500 mt-1">{today}</p>
         </div>
-        <Button className="bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white flex items-center gap-2">
-          <Plus className="size-4" />
-          New Appointment
-        </Button>
+        <CreateAppointmentButton />
       </div>
 
       {/* Appointments list */}
@@ -123,10 +134,7 @@ export default async function SchedulePage() {
             <p className="font-semibold text-gray-900">No appointments scheduled</p>
             <p className="text-sm text-gray-500 mt-1">Your upcoming appointments will appear here.</p>
           </div>
-          <Button className="bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white flex items-center gap-2 mt-2">
-            <Plus className="size-4" />
-            New Appointment
-          </Button>
+          <div className="mt-2"><CreateAppointmentButton /></div>
         </div>
       ) : (
         <div className="space-y-3">

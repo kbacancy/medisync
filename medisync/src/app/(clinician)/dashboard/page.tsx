@@ -3,12 +3,20 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { Users, Pill, AlertTriangle, TrendingUp, Video, MapPin } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { StatCard } from '@/components/ui/stat-card';
 import { RiskBadge } from '@/components/ui/risk-badge';
 import { StatSkeleton, CardSkeleton, TableSkeleton } from '@/components/ui/loading-skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { RiskLevel, PatientWithPDC } from '@/types';
+
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
@@ -60,28 +68,64 @@ function getPDCBarColor(score: number): string {
 
 // ─── Async Server Components ─────────────────────────────────────────────────
 
+function calcTrend(
+  curr: number | null,
+  prev: number | null,
+): { direction: 'up' | 'down'; percentage: number } | undefined {
+  if (curr == null || prev == null || prev === 0) return undefined;
+  const pct = Math.round((Math.abs(curr - prev) / prev) * 100);
+  return { direction: curr >= prev ? 'up' : 'down', percentage: pct };
+}
+
+function avgScores(rows: { score: number }[] | null): number | null {
+  if (!rows || rows.length === 0) return null;
+  return Math.round(rows.reduce((s, r) => s + r.score, 0) / rows.length);
+}
+
 async function StatsSection() {
   let stats = SEED_STATS;
+  let trends: {
+    patients?: { direction: 'up' | 'down'; percentage: number };
+    prescriptions?: { direction: 'up' | 'down'; percentage: number };
+    critical?: { direction: 'up' | 'down'; percentage: number };
+    pdc?: { direction: 'up' | 'down'; percentage: number };
+  } = {};
 
   try {
     const supabase = await createClient();
 
-    const [{ count: totalPatients }, { count: activePrescriptions }, { data: pdcData }] =
-      await Promise.all([
-        supabase.from('patients').select('*', { count: 'exact', head: true }),
-        supabase.from('prescriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('pdc_scores').select('score'),
-      ]);
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).toISOString();
 
-    const avgPDC =
-      pdcData && pdcData.length > 0
-        ? Math.round(pdcData.reduce((sum, r) => sum + r.score, 0) / pdcData.length)
-        : SEED_STATS.avg_pdc_score;
+    const [
+      { count: totalPatients },
+      { count: activePrescriptions },
+      { count: criticalCount },
+      { data: pdcAll },
+      { count: newPatientsThis },
+      { count: newPatientsLast },
+      { count: newRxThis },
+      { count: newRxLast },
+      { count: criticalLast },
+      { data: pdcThis },
+      { data: pdcLast },
+    ] = await Promise.all([
+      supabase.from('patients').select('*', { count: 'exact', head: true }),
+      supabase.from('prescriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('patients').select('*', { count: 'exact', head: true }).eq('risk_level', 'CRITICAL'),
+      supabase.from('pdc_scores').select('score'),
+      supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', thisMonthStart),
+      supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', lastMonthStart).lte('created_at', lastMonthEnd),
+      supabase.from('prescriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').gte('created_at', thisMonthStart),
+      supabase.from('prescriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').gte('created_at', lastMonthStart).lte('created_at', lastMonthEnd),
+      supabase.from('patients').select('*', { count: 'exact', head: true }).eq('risk_level', 'CRITICAL').lte('updated_at', lastMonthEnd),
+      supabase.from('pdc_scores').select('score').gte('calculated_at', thisMonthStart),
+      supabase.from('pdc_scores').select('score').gte('calculated_at', lastMonthStart).lte('calculated_at', lastMonthEnd),
+    ]);
 
-    const { count: criticalCount } = await supabase
-      .from('patients')
-      .select('*', { count: 'exact', head: true })
-      .eq('risk_level', 'CRITICAL');
+    const avgPDC = avgScores(pdcAll) ?? SEED_STATS.avg_pdc_score;
 
     if (totalPatients !== null) {
       stats = {
@@ -89,6 +133,12 @@ async function StatsSection() {
         active_prescriptions: activePrescriptions ?? SEED_STATS.active_prescriptions,
         critical_alerts: criticalCount ?? SEED_STATS.critical_alerts,
         avg_pdc_score: avgPDC,
+      };
+      trends = {
+        patients:      calcTrend(newPatientsThis, newPatientsLast),
+        prescriptions: calcTrend(newRxThis,       newRxLast),
+        critical:      calcTrend(criticalLast,     criticalCount),  // inverted: fewer critical = up (good)
+        pdc:           calcTrend(avgScores(pdcThis), avgScores(pdcLast)),
       };
     }
   } catch {
@@ -102,28 +152,28 @@ async function StatsSection() {
         value={stats.total_patients}
         icon={Users}
         iconBg="bg-[#0D6B5E]"
-        trend={{ direction: 'up', percentage: 4 }}
+        trend={trends.patients}
       />
       <StatCard
         title="Active Prescriptions"
         value={stats.active_prescriptions}
         icon={Pill}
         iconBg="bg-blue-500"
-        trend={{ direction: 'up', percentage: 2 }}
+        trend={trends.prescriptions}
       />
       <StatCard
         title="Critical Alerts"
         value={stats.critical_alerts}
         icon={AlertTriangle}
         iconBg="bg-red-500"
-        trend={{ direction: 'down', percentage: 1 }}
+        trend={trends.critical}
       />
       <StatCard
         title="Avg PDC Score"
         value={`${stats.avg_pdc_score}%`}
         icon={TrendingUp}
         iconBg="bg-emerald-500"
-        trend={{ direction: 'up', percentage: 3 }}
+        trend={trends.pdc}
       />
     </div>
   );
@@ -133,7 +183,7 @@ async function RecentPatientsSection() {
   let patients: PatientWithPDC[] = SEED_PATIENTS;
 
   try {
-    const supabase = await createClient();
+    const supabase = getServiceClient();
     const { data } = await supabase
       .from('patients')
       .select(`
@@ -240,7 +290,7 @@ async function TodayAppointmentsSection() {
   let usingSeed = true;
 
   try {
-    const supabase = await createClient();
+    const supabase = getServiceClient();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -253,7 +303,7 @@ async function TodayAppointmentsSection() {
         scheduled_at,
         type,
         reason,
-        patient:profiles!patient_id(full_name)
+        patient:patients!patient_id(profile:profiles!profile_id(full_name))
       `)
       .gte('scheduled_at', todayStart.toISOString())
       .lte('scheduled_at', todayEnd.toISOString())
@@ -266,15 +316,18 @@ async function TodayAppointmentsSection() {
         scheduled_at: string;
         type: 'telehealth' | 'in_person';
         reason: string;
-        patient: { full_name: string } | { full_name: string }[] | null;
+        patient: { profile: { full_name: string } | { full_name: string }[] | null } | { profile: { full_name: string } | { full_name: string }[] | null }[] | null;
       }) => {
-        const patientObj = Array.isArray(row.patient) ? row.patient[0] : row.patient;
+        const patientRec = Array.isArray(row.patient) ? row.patient[0] : row.patient;
+        const profileObj = patientRec?.profile
+          ? (Array.isArray(patientRec.profile) ? patientRec.profile[0] : patientRec.profile)
+          : null;
         const d = new Date(row.scheduled_at);
         const hh = d.getHours().toString().padStart(2, '0');
         const mm = d.getMinutes().toString().padStart(2, '0');
         return {
           id: row.id,
-          patient_name: patientObj?.full_name ?? 'Unknown',
+          patient_name: profileObj?.full_name ?? 'Unknown',
           time: `${hh}:${mm}`,
           type: row.type,
           reason: row.reason,
@@ -337,7 +390,9 @@ export default async function DashboardPage() {
   const { data: profile } = user
     ? await supabase.from('profiles').select('full_name').eq('id', user.id).single()
     : { data: null };
-  const firstName = profile?.full_name?.split(' ')[0] ?? 'Doctor';
+  const TITLES = new Set(['Dr.', 'Dr', 'Mr.', 'Mrs.', 'Ms.', 'Miss', 'Prof.', 'MD', 'PhD']);
+  const nameParts = (profile?.full_name ?? '').split(' ').filter(Boolean);
+  const firstName = nameParts.find((p: string) => !TITLES.has(p)) ?? nameParts[0] ?? 'Doctor';
 
   return (
     <div className="space-y-6">

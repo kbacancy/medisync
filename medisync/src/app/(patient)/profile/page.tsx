@@ -33,70 +33,14 @@ function getInitials(name: string): string {
     .join('');
 }
 
-// ─── Seed Data ────────────────────────────────────────────────────────────────
-
-const SEED_PROFILE: Profile = {
-  id: 'seed-1',
-  email: 'patient@example.com',
-  full_name: 'Maria Santos',
-  role: 'patient',
-  phone: '+1 (555) 123-4567',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
-const SEED_PATIENT: Patient = {
-  id: 'seed-1',
-  profile_id: 'seed-1',
-  date_of_birth: '1985-03-14',
-  gender: 'Female',
-  blood_type: 'O+',
-  blood_pressure: '118/76',
-  heart_rate: 72,
-  risk_level: 'MODERATE',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
-const SEED_PRESCRIPTIONS: Prescription[] = [
-  {
-    id: 'rx-1',
-    patient_id: 'seed-1',
-    clinician_id: 'doc-1',
-    medication_name: 'Metformin',
-    dosage: '500mg',
-    frequency: 'Twice daily',
-    days_supply: 30,
-    refills: 3,
-    start_date: '2024-01-01',
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'rx-2',
-    patient_id: 'seed-1',
-    clinician_id: 'doc-1',
-    medication_name: 'Lisinopril',
-    dosage: '10mg',
-    frequency: 'Once daily',
-    days_supply: 30,
-    refills: 5,
-    start_date: '2024-01-15',
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PatientProfilePage() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<Profile>(SEED_PROFILE);
-  const [patient, setPatient] = useState<Patient>(SEED_PATIENT);
-  const [medications, setMedications] = useState<Prescription[]>(SEED_PRESCRIPTIONS);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [medications, setMedications] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string>('');
 
@@ -107,14 +51,14 @@ export default function PatientProfilePage() {
     formState: { errors, isSubmitting },
   } = useForm<EditProfileValues>({
     resolver: zodResolver(editProfileSchema),
-    defaultValues: { full_name: SEED_PROFILE.full_name, phone: SEED_PROFILE.phone ?? '' },
+    defaultValues: { full_name: '', phone: '' },
   });
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { router.push('/login'); return; }
 
       setUserId(user.id);
 
@@ -124,13 +68,25 @@ export default function PatientProfilePage() {
         .eq('id', user.id)
         .single();
 
-      const resolvedProfile: Profile = profileData ?? {
-        ...SEED_PROFILE,
-        id: user.id,
-        email: user.email ?? SEED_PROFILE.email,
-      };
-      setProfile(resolvedProfile);
-      reset({ full_name: resolvedProfile.full_name, phone: resolvedProfile.phone ?? '' });
+      if (profileData) {
+        setProfile(profileData as Profile);
+        reset({ full_name: profileData.full_name ?? '', phone: profileData.phone ?? '' });
+      } else {
+        // Profile row missing — build a minimal one from auth metadata so the
+        // user sees their own data, not hardcoded placeholder values.
+        const authName = (user.user_metadata?.full_name as string | undefined) ?? '';
+        const fallback: Profile = {
+          id: user.id,
+          email: user.email ?? '',
+          full_name: authName,
+          role: 'patient',
+          phone: undefined,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setProfile(fallback);
+        reset({ full_name: authName, phone: '' });
+      }
 
       const { data: patientData } = await supabase
         .from('patients')
@@ -138,38 +94,35 @@ export default function PatientProfilePage() {
         .eq('profile_id', user.id)
         .single();
 
-      const resolvedPatient: Patient = patientData ?? { ...SEED_PATIENT, profile_id: user.id };
-      setPatient(resolvedPatient);
+      setPatient((patientData as Patient) ?? null);
 
-      const { data: rxData } = await supabase
-        .from('prescriptions')
-        .select('*')
-        .eq('patient_id', resolvedPatient.id)
-        .eq('status', 'active');
+      if (patientData) {
+        const { data: rxData } = await supabase
+          .from('prescriptions')
+          .select('*')
+          .eq('patient_id', patientData.id)
+          .eq('status', 'active');
 
-      if (rxData && rxData.length > 0) {
-        setMedications(rxData as Prescription[]);
-      } else {
-        setMedications(SEED_PRESCRIPTIONS);
+        setMedications((rxData as Prescription[]) ?? []);
       }
 
       setLoading(false);
     };
 
     load();
-  }, [reset]);
+  }, [reset, router]);
 
   const onSubmit = async (values: EditProfileValues) => {
     const supabase = createClient();
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: values.full_name, phone: values.phone ?? null })
+      .update({ full_name: values.full_name, phone: values.phone ?? undefined })
       .eq('id', userId);
 
     if (error) {
       toast.error('Failed to update profile. Please try again.');
     } else {
-      setProfile((prev) => ({ ...prev, full_name: values.full_name, phone: values.phone }));
+      setProfile((prev) => prev ? { ...prev, full_name: values.full_name, phone: values.phone } : prev);
       toast.success('Profile updated successfully.');
     }
   };
@@ -180,7 +133,7 @@ export default function PatientProfilePage() {
     router.push('/login');
   };
 
-  const dob = patient.date_of_birth
+  const dob = patient?.date_of_birth
     ? format(new Date(patient.date_of_birth), 'MMMM d, yyyy')
     : 'Not recorded';
 
@@ -199,25 +152,29 @@ export default function PatientProfilePage() {
       {/* Profile card */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col items-center gap-3">
         <div className="size-20 rounded-full bg-[#0D6B5E] flex items-center justify-center shrink-0">
-          <span className="text-white text-2xl font-bold">{getInitials(profile.full_name)}</span>
+          <span className="text-white text-2xl font-bold">
+            {profile?.full_name ? getInitials(profile.full_name) : '?'}
+          </span>
         </div>
         <div className="text-center">
-          <p className="text-lg font-bold text-gray-900">{profile.full_name}</p>
-          <p className="text-sm text-gray-500">{profile.email}</p>
+          <p className="text-lg font-bold text-gray-900">{profile?.full_name || 'No name set'}</p>
+          <p className="text-sm text-gray-500">{profile?.email}</p>
         </div>
-        <div className="flex flex-wrap gap-3 text-sm text-gray-600 justify-center mt-1">
-          <span>
-            <span className="font-medium text-gray-900">DOB:</span> {dob}
-          </span>
-          <span>
-            <span className="font-medium text-gray-900">Gender:</span> {patient.gender}
-          </span>
-          {patient.blood_type && (
+        {patient && (
+          <div className="flex flex-wrap gap-3 text-sm text-gray-600 justify-center mt-1">
             <span>
-              <span className="font-medium text-gray-900">Blood Type:</span> {patient.blood_type}
+              <span className="font-medium text-gray-900">DOB:</span> {dob}
             </span>
-          )}
-        </div>
+            <span>
+              <span className="font-medium text-gray-900">Gender:</span> {patient.gender}
+            </span>
+            {patient.blood_type && (
+              <span>
+                <span className="font-medium text-gray-900">Blood Type:</span> {patient.blood_type}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Vitals card */}
@@ -227,13 +184,13 @@ export default function PatientProfilePage() {
           <div className="bg-[#F4F6F8] rounded-lg p-3">
             <p className="text-xs text-gray-500">Blood Pressure</p>
             <p className="text-base font-bold text-gray-900 mt-0.5">
-              {patient.blood_pressure ?? '—'} <span className="text-xs font-normal text-gray-500">mmHg</span>
+              {patient?.blood_pressure ?? '—'} <span className="text-xs font-normal text-gray-500">mmHg</span>
             </p>
           </div>
           <div className="bg-[#F4F6F8] rounded-lg p-3">
             <p className="text-xs text-gray-500">Heart Rate</p>
             <p className="text-base font-bold text-gray-900 mt-0.5">
-              {patient.heart_rate ?? '—'} <span className="text-xs font-normal text-gray-500">bpm</span>
+              {patient?.heart_rate ?? '—'} <span className="text-xs font-normal text-gray-500">bpm</span>
             </p>
           </div>
         </div>

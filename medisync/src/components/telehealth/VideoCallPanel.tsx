@@ -99,6 +99,12 @@ export function VideoCallPanel({
       try {
         setCallState('connecting')
 
+        // In mock/dev mode the room URL is a stub — skip the SDK entirely
+        if (roomUrl.startsWith('https://mock.daily.co/')) {
+          if (!cancelled) setCallState('waiting')
+          return
+        }
+
         // Server creates a signed token — keeps DAILY_API_KEY off the client
         const tokenRes = await fetch('/api/telehealth/get-token', {
           method: 'POST',

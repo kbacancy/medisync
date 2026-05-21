@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -41,16 +42,20 @@ export default function ProfileScreen() {
 
     const userId = sessionData.user.id;
 
-    const [{ data: profile }, { data: patient }, { data: prescriptions }] =
-      await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('patients').select('*').eq('profile_id', userId).single(),
-        supabase
+    const [{ data: profile }, { data: patient }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.from('patients').select('*').eq('profile_id', userId).single(),
+    ]);
+
+    // prescriptions.patient_id is a FK to patients.id, not auth.uid()
+    const patientRecordId = patient?.id;
+    const { data: prescriptions } = patientRecordId
+      ? await supabase
           .from('prescriptions')
           .select('id')
-          .eq('patient_id', userId)
-          .eq('status', 'active'),
-      ]);
+          .eq('patient_id', patientRecordId)
+          .eq('status', 'active')
+      : { data: [] };
 
     if (profile) {
       setData({
@@ -127,7 +132,25 @@ export default function ProfileScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0D6B5E" />
       }
     >
-      {loading || !data ? null : (
+      {loading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator color="#0D6B5E" size="large" />
+        </View>
+      ) : !data ? (
+        <View style={styles.errorState}>
+          <Text style={styles.errorTitle}>Could not load profile</Text>
+          <Text style={styles.errorMsg}>
+            Pull down to retry, or sign out and sign back in.
+          </Text>
+          <TouchableOpacity
+            onPress={handleSignOut}
+            style={styles.signOutBtn}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
         <>
           <View style={styles.avatarSection}>
             <View style={styles.avatar}>
@@ -277,6 +300,28 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F6F8' },
   content: { padding: 16, paddingBottom: 48 },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  errorState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  errorMsg: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   avatarSection: {
     alignItems: 'center',
     paddingVertical: 24,
