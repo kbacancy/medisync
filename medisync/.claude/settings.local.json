@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls D:/MediSync/medisync/.env*)",
+      "Bash(node -e \"const wp = require\\('web-push'\\); const keys = wp.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', keys.publicKey\\); console.log\\('PRIVATE:', keys.privateKey\\);\")"
+    ]
+  }
+}

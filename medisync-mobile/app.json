@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "MediSync",
+    "slug": "medisync-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0D6B5E"
+    },
+    "ios": {
+      "bundleIdentifier": "com.medisync.mobile",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.medisync.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D6B5E"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow MediSync to detect smart bottle cap movements"
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-sqlite"
+    ],
+    "scheme": "medisync"
+  }
+}

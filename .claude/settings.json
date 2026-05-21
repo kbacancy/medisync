@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"d:\\\\MediSync\\\\medisync\\\\src\\\\middleware.ts\" -Raw)",
+      "Read(//d/MediSync/**)",
+      "Bash(Get-ChildItem -Path \"d:\\\\MediSync\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Get-ChildItem -Path \"d:\\\\MediSync\\\\medisync\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(mkdir -p \"d:\\\\MediSync\\\\medisync\\\\src\\\\app\\\\\\(clinician\\)\\\\patients\\\\[id]\" 2>/dev/null; echo \"done\")",
+      "Bash(Get-ChildItem \"d:\\\\MediSync\\\\medisync\\\\src\\\\components\\\\adherence\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem \"d:\\\\MediSync\\\\medisync\\\\src\\\\app\\\\api\" -Recurse)",
+      "Bash(Get-ChildItem \"d:\\\\MediSync\\\\medisync\\\\src\\\\app\\\\\\(clinician\\)\\\\patients\" -Recurse)",
+      "PowerShell($base = \"d:\\\\MediSync\\\\medisync\\\\src\"; @\\(\"components\\\\adherence\", \"app\\\\api\\\\prescriptions\\\\new\", \"app\\\\api\\\\ddi-check\", \"lib\\\\pdc\"\\) | ForEach-Object { Write-Host \"--- $_\"; Get-ChildItem \"$base\\\\$_\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name })",
+      "Bash(git init *)",
+      "Bash(git branch *)"
+    ],
+    "additionalDirectories": [
+      "d:\\MediSync\\medisync\\src\\app\\(clinician)\\patients"
+    ]
+  }
+}

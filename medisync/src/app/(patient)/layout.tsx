@@ -1,0 +1,51 @@
+import { redirect } from 'next/navigation';
+import { Toaster } from 'sonner';
+import { createClient } from '@/lib/supabase/server';
+import { PatientHeader } from '@/components/patient/header';
+import { TabBar } from '@/components/patient/tab-bar';
+import { OfflineBanner } from '@/components/patient/OfflineBanner';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import type { Profile } from '@/types';
+
+export default async function PatientLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  const profile: Profile = profileData ?? {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: user.email?.split('@')[0] ?? 'Patient',
+    role: 'patient',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  return (
+    <>
+      <PatientHeader profile={profile} />
+      <OfflineBanner />
+      <main className="mt-[56px] mb-[60px] bg-[#F4F6F8] min-h-[calc(100vh-116px)] overflow-y-auto">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
+      <TabBar />
+      <Toaster richColors position="top-center" />
+    </>
+  );
+}

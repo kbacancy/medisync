@@ -1,0 +1,33 @@
+# ─── Common ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.pem
+
+# ─── Env files (both projects) ────────────────────────────────────────────────
+**/.env
+**/.env.local
+**/.env.*.local
+
+# ─── Node modules (both projects) ─────────────────────────────────────────────
+**/node_modules/
+
+# ─── medisync (Next.js) — handled by medisync/.gitignore ──────────────────────
+medisync/.next/
+medisync/out/
+medisync/build/
+medisync/.vercel/
+medisync/coverage/
+medisync/*.tsbuildinfo
+medisync/next-env.d.ts
+
+# ─── medisync-mobile (Expo / React Native) ────────────────────────────────────
+medisync-mobile/.expo/
+medisync-mobile/.expo-shared/
+medisync-mobile/dist/
+medisync-mobile/web-build/
+medisync-mobile/android/
+medisync-mobile/ios/
+medisync-mobile/*.tsbuildinfo
+medisync-mobile/npm-debug.log*
+medisync-mobile/yarn-debug.log*
+medisync-mobile/yarn-error.log*
