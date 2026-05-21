@@ -23,6 +23,13 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MediSync to access your camera for video consultations",
+          "microphonePermission": "Allow MediSync to access your microphone for video consultations"
+        }
+      ],
+      [
         "expo-sensors",
         {
           "motionPermission": "Allow MediSync to detect smart bottle cap movements"

@@ -21,7 +21,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type appointment_status as enum ('scheduled', 'completed', 'cancelled', 'no_show');
+  create type appointment_status as enum ('scheduled', 'completed', 'cancelled', 'no_show', 'in-call');
 exception when duplicate_object then null; end $$;
 
 do $$ begin

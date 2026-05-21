@@ -16,7 +16,12 @@ import { supabase } from '../lib/supabase/client';
 import { OfflineBanner } from '../components/ui/OfflineBanner';
 import { initSyncQueue, setupNetworkListener } from '../lib/offline/syncQueue';
 import { setupNotificationHandlers } from '../lib/notifications/push';
+import {
+  setupCallNotificationHandler,
+  setupForegroundCallHandler,
+} from '../lib/notifications/callHandler';
 import type { Session } from '@supabase/supabase-js';
+import type { Subscription } from 'expo-notifications';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,6 +40,15 @@ export default function RootLayout() {
   useEffect(() => {
     initSyncQueue().then(() => setupNetworkListener()).catch(console.error);
     setupNotificationHandlers();
+
+    // Set up call notification handlers and clean up on unmount
+    const tapSub: Subscription = setupCallNotificationHandler();
+    const fgSub: Subscription = setupForegroundCallHandler();
+
+    return () => {
+      tapSub.remove();
+      fgSub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -55,7 +69,6 @@ export default function RootLayout() {
     SplashScreen.hideAsync();
 
     const inAuthGroup = segments[0] === '(auth)';
-    const inPatientGroup = segments[0] === '(patient)';
 
     if (session && inAuthGroup) {
       router.replace('/(patient)/medications');

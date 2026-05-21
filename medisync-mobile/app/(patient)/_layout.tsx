@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet } from 'react-native';
+import { Tabs } from 'expo-router';
 import {
   Pill,
   BarChart2,
+  Calendar,
   Package,
   Bell,
   User,
@@ -25,7 +25,7 @@ export default function PatientLayout() {
 
   return (
     <Tabs
-      screenOptions={({ route }) => ({
+      screenOptions={{
         tabBarActiveTintColor: '#0D6B5E',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: styles.tabBar,
@@ -35,7 +35,7 @@ export default function PatientLayout() {
         headerTitle: 'MediSync',
         headerTitleAlign: 'left',
         headerShadowVisible: false,
-      })}
+      }}
     >
       <Tabs.Screen
         name="medications"
@@ -49,6 +49,13 @@ export default function PatientLayout() {
         options={{
           title: 'Adherence',
           tabBarIcon: ({ color, size }) => <BarChart2 size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="appointments"
+        options={{
+          title: 'Appointments',
+          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -75,6 +82,14 @@ export default function PatientLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+        }}
+      />
+      {/* call screen — full-screen, hidden from tab bar */}
+      <Tabs.Screen
+        name="call"
+        options={{
+          href: null,
+          headerShown: false,
         }}
       />
     </Tabs>

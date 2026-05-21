@@ -6,13 +6,16 @@ import {
   RefreshControl,
   StyleSheet,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { Video } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase/client';
 import {
   PrescriptionWithDispense,
@@ -33,19 +36,14 @@ import {
 } from '../../lib/sensors/bottleCap';
 import { initSyncQueue } from '../../lib/offline/syncQueue';
 
-const TIME_SLOTS: { key: TimeOfDay; hours: number[] }[] = [
-  { key: 'morning', hours: [6, 7, 8, 9, 10, 11] },
-  { key: 'afternoon', hours: [12, 13, 14, 15, 16] },
-  { key: 'evening', hours: [17, 18, 19, 20] },
-  { key: 'bedtime', hours: [21, 22, 23] },
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-function slotForHour(hour: number): TimeOfDay {
-  for (const slot of TIME_SLOTS) {
-    if (slot.hours.includes(hour)) return slot.key;
-  }
-  return 'morning';
-}
+const TIME_SLOTS: { key: TimeOfDay; hours: number[] }[] = [
+  { key: 'morning',   hours: [6, 7, 8, 9, 10, 11]     },
+  { key: 'afternoon', hours: [12, 13, 14, 15, 16]      },
+  { key: 'evening',   hours: [17, 18, 19, 20]          },
+  { key: 'bedtime',   hours: [21, 22, 23]              },
+];
 
 function greetingFor(name: string): string {
   const h = new Date().getHours();
@@ -61,14 +59,30 @@ function todayLabel(): string {
   });
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface AppointmentBanner {
+  id: string;
+  doctorName: string;
+  status: string;
+  room_url?: string;
+  room_name?: string;
+  scheduled_at: string;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [prescriptions, setPrescriptions] = useState<PrescriptionWithDispense[]>([]);
   const [logs, setLogs] = useState<AdherenceLog[]>([]);
   const [patientId, setPatientId] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
+  const [activeAppointment, setActiveAppointment] = useState<AppointmentBanner | null>(null);
+  const [upcomingAppointment, setUpcomingAppointment] = useState<AppointmentBanner | null>(null);
 
   const progressWidth = useSharedValue(0);
 
@@ -139,7 +153,6 @@ export default function MedicationsScreen() {
         } else {
           times.push(`${today}T08:00:00`);
         }
-
         return times.map((t) => ({
           id: `${p.id}-${t}`,
           patient_id: pid,
@@ -150,6 +163,63 @@ export default function MedicationsScreen() {
         }));
       });
       setLogs(generatedLogs);
+    }
+
+    // Fetch today's appointments to show banners
+    const now = new Date().toISOString();
+    const endOfDay = `${today}T23:59:59`;
+    const { data: apptData } = await supabase
+      .from('appointments')
+      .select(`
+        id, scheduled_at, status, room_url, room_name,
+        clinician:profiles!clinician_id(full_name)
+      `)
+      .eq('patient_id', pid)
+      .gte('scheduled_at', `${today}T00:00:00`)
+      .lte('scheduled_at', endOfDay)
+      .order('scheduled_at', { ascending: true });
+
+    if (apptData) {
+      // Active call — doctor is waiting right now
+      const inCallAppt = (apptData as Record<string, unknown>[]).find(
+        (a) => a.status === 'in-call'
+      );
+      if (inCallAppt) {
+        const clinician = inCallAppt.clinician as { full_name?: string } | null;
+        setActiveAppointment({
+          id: inCallAppt.id as string,
+          doctorName: clinician?.full_name ?? 'Doctor',
+          status: inCallAppt.status as string,
+          room_url: inCallAppt.room_url as string | undefined,
+          room_name: inCallAppt.room_name as string | undefined,
+          scheduled_at: inCallAppt.scheduled_at as string,
+        });
+      } else {
+        setActiveAppointment(null);
+      }
+
+      // Upcoming — within next 30 minutes
+      const upcoming = (apptData as Record<string, unknown>[]).find((a) => {
+        if (a.status !== 'scheduled') return false;
+        const minsUntil = Math.floor(
+          (new Date(a.scheduled_at as string).getTime() - Date.now()) / 60_000
+        );
+        return minsUntil >= 0 && minsUntil <= 30;
+      });
+      if (upcoming) {
+        const clinician = upcoming.clinician as { full_name?: string } | null;
+        const minsUntil = Math.floor(
+          (new Date(upcoming.scheduled_at as string).getTime() - Date.now()) / 60_000
+        );
+        setUpcomingAppointment({
+          id: upcoming.id as string,
+          doctorName: clinician?.full_name ?? 'Doctor',
+          status: `in ${minsUntil} min`,
+          scheduled_at: upcoming.scheduled_at as string,
+        });
+      } else {
+        setUpcomingAppointment(null);
+      }
     }
   }, []);
 
@@ -266,6 +336,7 @@ export default function MedicationsScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0D6B5E" />
       }
     >
+      {/* Header card */}
       <View style={styles.headerCard}>
         <Text style={styles.greeting}>{greetingFor(userName || 'there')}</Text>
         <Text style={styles.dateLabel}>{todayLabel()}</Text>
@@ -283,6 +354,48 @@ export default function MedicationsScreen() {
         </View>
       </View>
 
+      {/* Active call banner — doctor is waiting now */}
+      {activeAppointment && activeAppointment.room_url && (
+        <TouchableOpacity
+          style={styles.activeCallBanner}
+          onPress={() =>
+            router.push({
+              pathname: '/(patient)/call',
+              params: {
+                appointmentId: activeAppointment.id,
+                roomUrl: activeAppointment.room_url ?? '',
+                roomName: activeAppointment.room_name ?? '',
+                doctorName: activeAppointment.doctorName.replace(/^Dr\.\s*/i, ''),
+              },
+            })
+          }
+        >
+          <View style={styles.activePulse} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.activeBannerTitle}>
+              {activeAppointment.doctorName} is waiting
+            </Text>
+            <Text style={styles.activeBannerSub}>Tap to join your video consultation</Text>
+          </View>
+          <View style={styles.joinNowBtn}>
+            <Video size={14} color="#fff" />
+            <Text style={styles.joinNowText}>Join Now</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Upcoming appointment reminder */}
+      {!activeAppointment && upcomingAppointment && (
+        <View style={styles.upcomingBanner}>
+          <Text style={styles.upcomingIcon}>🗓</Text>
+          <Text style={styles.upcomingText}>
+            Appointment {upcomingAppointment.status} with{' '}
+            {upcomingAppointment.doctorName}
+          </Text>
+        </View>
+      )}
+
+      {/* Medication slots */}
       {loading ? (
         <>
           <DoseCardSkeleton />
@@ -312,13 +425,15 @@ export default function MedicationsScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F6F8' },
   headerCard: {
     backgroundColor: '#0D6B5E',
     borderRadius: 20,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   greeting: {
     fontSize: 22,
@@ -357,6 +472,65 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#fff',
     borderRadius: 4,
+  },
+  activeCallBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D6B5E',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    gap: 10,
+  },
+  activePulse: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4ade80',
+  },
+  activeBannerTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  activeBannerSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    marginTop: 1,
+  },
+  joinNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  joinNowText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  upcomingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  upcomingIcon: {
+    fontSize: 18,
+  },
+  upcomingText: {
+    color: '#92400E',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
   empty: {
     alignItems: 'center',
