@@ -28,6 +28,15 @@ interface VideoCallPanelProps {
 
 type CallState = 'connecting' | 'waiting' | 'live' | 'reconnecting' | 'error'
 
+type DailyParticipant = {
+  local?: boolean
+  screen?: boolean
+  tracks?: {
+    video?: { persistentTrack?: MediaStreamTrack }
+    audio?: { persistentTrack?: MediaStreamTrack }
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTime(seconds: number): string {
@@ -133,7 +142,7 @@ export function VideoCallPanel({
         co.on('joined-meeting', () => {
           if (cancelled) return
           setCallState('waiting')
-          const all = co.participants() ?? {}
+          const all = (co.participants() ?? {}) as Record<string, DailyParticipant>
           const local = all.local
           const vid = local?.tracks?.video?.persistentTrack
           const aud = local?.tracks?.audio?.persistentTrack
@@ -141,25 +150,21 @@ export function VideoCallPanel({
           if (aud) mergeTrack(localVideoRef.current, aud)
 
           // Patient may already be in the room — pick them up immediately
-          const remote = Object.values(all).find(
-            (p: Record<string, unknown>) => !p.local
-          ) as Record<string, { persistentTrack?: MediaStreamTrack }> | undefined
+          const remote = Object.values(all).find((p) => !p.local)
           if (remote) {
             setCallState('live')
             if (!timerRef.current) {
               timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
             }
-            const rVid = (remote as Record<string, { tracks?: Record<string, { persistentTrack?: MediaStreamTrack }> }>)
-              ?.tracks?.video?.persistentTrack
-            const rAud = (remote as Record<string, { tracks?: Record<string, { persistentTrack?: MediaStreamTrack }> }>)
-              ?.tracks?.audio?.persistentTrack
+            const rVid = remote.tracks?.video?.persistentTrack
+            const rAud = remote.tracks?.audio?.persistentTrack
             if (rVid) mergeTrack(remoteVideoRef.current, rVid)
             if (rAud) mergeTrack(remoteVideoRef.current, rAud)
           }
         })
 
         // ── participant-joined: patient arrived ─────────────────────────────
-        co.on('participant-joined', (evt: { participant: Record<string, unknown> }) => {
+        co.on('participant-joined', (evt: { participant: DailyParticipant }) => {
           if (cancelled) return
           const p = evt?.participant
           if (!p || p.local) return
@@ -170,10 +175,8 @@ export function VideoCallPanel({
           toast.success(`${patientNameRef.current} has joined the call`, {
             description: 'Video connection established',
           })
-          // tracks may be null here — track-started will deliver them when ready
-          const tracks = p.tracks as Record<string, { persistentTrack?: MediaStreamTrack }>
-          const vid = tracks?.video?.persistentTrack
-          const aud = tracks?.audio?.persistentTrack
+          const vid = p.tracks?.video?.persistentTrack
+          const aud = p.tracks?.audio?.persistentTrack
           if (vid) mergeTrack(remoteVideoRef.current, vid)
           if (aud) mergeTrack(remoteVideoRef.current, aud)
         })
@@ -181,7 +184,7 @@ export function VideoCallPanel({
         // ── track-started: new / replaced track ────────────────────────────
         co.on(
           'track-started',
-          (evt: { participant: Record<string, unknown>; track: MediaStreamTrack }) => {
+          (evt: { participant: DailyParticipant; track: MediaStreamTrack }) => {
             if (cancelled) return
             const { participant: p, track } = evt
             const el = p?.local ? localVideoRef.current : remoteVideoRef.current
@@ -190,20 +193,19 @@ export function VideoCallPanel({
         )
 
         // ── participant-updated: mute/unmute / track swap ───────────────────
-        co.on('participant-updated', (evt: { participant: Record<string, unknown> }) => {
+        co.on('participant-updated', (evt: { participant: DailyParticipant }) => {
           if (cancelled) return
           const p = evt?.participant
           if (!p) return
-          const tracks = p.tracks as Record<string, { persistentTrack?: MediaStreamTrack }>
-          const vid = tracks?.video?.persistentTrack
-          const aud = tracks?.audio?.persistentTrack
+          const vid = p.tracks?.video?.persistentTrack
+          const aud = p.tracks?.audio?.persistentTrack
           const el = p.local ? localVideoRef.current : remoteVideoRef.current
           if (vid) mergeTrack(el, vid)
           if (aud) mergeTrack(el, aud)
         })
 
         // ── participant-left: patient hung up ───────────────────────────────
-        co.on('participant-left', (evt: { participant: Record<string, unknown> }) => {
+        co.on('participant-left', (evt: { participant: DailyParticipant }) => {
           if (cancelled) return
           if (evt?.participant?.local) return
           setCallState('waiting')

@@ -181,7 +181,6 @@ export function WaitingRoomRealtime({
               )}
             >
               <WaitingRoomCard
-                id={patient.id}
                 name={patient.name}
                 initials={patient.initials}
                 reason={patient.reason}
