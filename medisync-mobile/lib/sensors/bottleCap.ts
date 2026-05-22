@@ -13,35 +13,6 @@ function magnitude(x: number, y: number, z: number): number {
   return Math.sqrt(x * x + y * y + z * z);
 }
 
-export async function isSensorAvailable(): Promise<boolean> {
-  return Accelerometer.isAvailableAsync();
-}
-
-export async function calibrateBaseline(): Promise<void> {
-  const available = await isSensorAvailable();
-  if (!available) return;
-
-  return new Promise((resolve) => {
-    const readings: { x: number; y: number; z: number }[] = [];
-    Accelerometer.setUpdateInterval(100);
-    const sub = Accelerometer.addListener(({ x, y, z }) => {
-      readings.push({ x, y, z });
-      if (readings.length >= 10) {
-        sub.remove();
-        baseline = {
-          x: readings.reduce((s, r) => s + r.x, 0) / readings.length,
-          y: readings.reduce((s, r) => s + r.y, 0) / readings.length,
-          z: readings.reduce((s, r) => s + r.z, 0) / readings.length,
-        };
-        SecureStore.setItemAsync(
-          BASELINE_KEY,
-          JSON.stringify(baseline)
-        ).then(() => resolve());
-      }
-    });
-  });
-}
-
 async function loadBaseline(): Promise<void> {
   try {
     const stored = await SecureStore.getItemAsync(BASELINE_KEY);

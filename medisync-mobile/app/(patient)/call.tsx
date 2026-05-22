@@ -10,10 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
-import {
-  requestCameraPermissionsAsync,
-  requestMicrophonePermissionsAsync,
-} from 'expo-camera';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -33,6 +30,7 @@ import {
   Loader,
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase/client';
+import { getApiUrl } from '../../lib/apiUrl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +40,9 @@ type CallState = 'permissions' | 'connecting' | 'waiting' | 'live' | 'reconnecti
 
 export default function CallScreen() {
   useKeepAwake();
+
+  const [, requestCameraPermission] = useCameraPermissions();
+  const [, requestMicPermission] = useMicrophonePermissions();
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -105,8 +106,8 @@ export default function CallScreen() {
       try {
         // 1. Camera + microphone permissions
         const [cam, mic] = await Promise.all([
-          requestCameraPermissionsAsync(),
-          requestMicrophonePermissionsAsync(),
+          requestCameraPermission(),
+          requestMicPermission(),
         ]);
 
         if (!cam.granted || !mic.granted) {
@@ -135,8 +136,7 @@ export default function CallScreen() {
           .single();
         const userName = profileData?.full_name ?? 'Patient';
 
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-        const tokenRes = await fetch(`${apiUrl}/api/telehealth/get-token`, {
+        const tokenRes = await fetch(`${getApiUrl()}/api/telehealth/get-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -167,8 +167,21 @@ export default function CallScreen() {
         co.on('joined-meeting', () => {
           if (cancelled) return;
           setCallState('waiting');
-          const local = co.participants()?.local;
+          const all = co.participants() ?? {};
+          const local = all.local;
           if (local) setLocalParticipant(local);
+
+          // The doctor joined before the patient — pick them up immediately
+          const remote = Object.values(all).find(
+            (p: Record<string, unknown>) => !p.local
+          ) as Record<string, unknown> | undefined;
+          if (remote) {
+            setRemoteParticipant(remote);
+            setCallState('live');
+            if (!timerRef.current) {
+              timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+            }
+          }
         });
 
         co.on('participant-joined', (evt: { participant: Record<string, unknown> }) => {
@@ -191,6 +204,18 @@ export default function CallScreen() {
           }
         });
 
+        // track-started fires when a remote track becomes playable after join
+        co.on('track-started', (evt: { participant: Record<string, unknown> }) => {
+          if (cancelled) return;
+          const p = evt?.participant;
+          if (!p) return;
+          if (p.local) {
+            setLocalParticipant((prev: Record<string, unknown> | null) => ({ ...prev, ...p }));
+          } else {
+            setRemoteParticipant((prev: Record<string, unknown> | null) => ({ ...prev, ...p }));
+          }
+        });
+
         co.on('participant-left', (evt: { participant: Record<string, unknown> }) => {
           if (cancelled || evt?.participant?.local) return;
           setRemoteParticipant(null);
@@ -206,13 +231,25 @@ export default function CallScreen() {
           setCallState('ended');
         });
 
-        co.on('error', (evt: { errorMsg?: string }) => {
+        const handleError = (evt: { errorMsg?: string }) => {
           if (cancelled) return;
           setCallState('error');
           setErrorMsg(evt?.errorMsg ?? 'An error occurred during the call');
-        });
+        };
+        co.on('error', handleError);
+        co.on('nonfatal-error', handleError);
 
-        await co.join({ url: roomUrl, token });
+        // Race the join against a 30-second timeout so a silent WebRTC failure
+        // shows a clear error instead of leaving the patient stuck on "Connecting"
+        await Promise.race([
+          co.join({ url: roomUrl, token }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Connection timed out — check your network and try again.')),
+              30_000
+            )
+          ),
+        ]);
       } catch (err) {
         if (cancelled) return;
         setCallState('error');

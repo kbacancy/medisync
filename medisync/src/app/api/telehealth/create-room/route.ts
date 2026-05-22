@@ -16,6 +16,94 @@ function getServiceClient() {
   )
 }
 
+type ExpoTicket =
+  | { status: 'ok'; id: string }
+  | { status: 'error'; message: string; details?: { error: string } }
+
+async function sendCallPush(
+  supabase: ReturnType<typeof getServiceClient>,
+  patientId: string,
+  appointmentId: string,
+  roomUrl: string,
+  roomName: string,
+  doctorName: string
+) {
+  // patientId is patients.id — resolve profile_id (= profiles.id = push_subscriptions.user_id)
+  const { data: patientRecord } = await supabase
+    .from('patients')
+    .select('profile_id')
+    .eq('id', patientId)
+    .maybeSingle()
+
+  const profileId = patientRecord?.profile_id
+  if (!profileId) {
+    console.error(`[Push] No patients row found for patientId=${patientId}`)
+    return
+  }
+
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('token, platform')
+    .eq('user_id', profileId)
+    .in('platform', ['ios', 'android'])
+
+  if (!subs || subs.length === 0) {
+    console.error(`[Push] No push token on file for profileId=${profileId}`)
+    return
+  }
+
+  const tokens = subs as { token: string; platform: string }[]
+
+  const messages = tokens.map((s) => ({
+    to: s.token,
+    title: `Dr. ${doctorName} is ready for your appointment`,
+    body: 'Tap to join your video consultation now',
+    data: {
+      type: 'call_started',
+      appointmentId,
+      roomUrl,
+      roomName,
+      doctorName,
+    },
+    sound: 'default',
+    priority: 'high',
+    channelId: 'telehealth-calls',
+  }))
+
+  const expoRes = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Encoding': 'gzip, deflate',
+    },
+    body: JSON.stringify(messages),
+  })
+
+  if (!expoRes.ok) {
+    console.error(`[Push] Expo API HTTP ${expoRes.status}: ${await expoRes.text()}`)
+    return
+  }
+
+  const { data: tickets } = (await expoRes.json()) as { data: ExpoTicket[] }
+  const staleTokens: string[] = []
+
+  tickets?.forEach((ticket, i) => {
+    if (ticket.status === 'error') {
+      console.error(`[Push] Ticket error for token ${tokens[i]?.token}: ${ticket.message}`)
+      if (ticket.details?.error === 'DeviceNotRegistered') {
+        staleTokens.push(tokens[i].token)
+      }
+    }
+  })
+
+  // Purge tokens that APNs/FCM rejected so they don't block future calls
+  if (staleTokens.length > 0) {
+    await supabase.from('push_subscriptions').delete().in('token', staleTokens)
+    console.error(`[Push] Deleted ${staleTokens.length} stale token(s)`)
+  }
+}
+
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -32,15 +120,15 @@ export async function POST(request: Request) {
     )
   }
 
-  const { appointmentId, patientId, doctorId: _doctorId, doctorName } = parsed.data
+  const { appointmentId, patientId, doctorName } = parsed.data
+  const supabase = getServiceClient()
 
-  // ── Dev mock: skip Daily.co entirely ──────────────────────────────────────
+  // ── Dev mock: skip Daily.co API but still send push ───────────────────────
   if (process.env.DAILY_MOCK === 'true') {
     const mockRoom = {
       url: `https://mock.daily.co/medisync-${appointmentId}`,
       name: `medisync-${appointmentId}`,
     }
-    const supabase = getServiceClient()
     await supabase
       .from('appointments')
       .update({
@@ -50,6 +138,9 @@ export async function POST(request: Request) {
         started_at: new Date().toISOString(),
       })
       .eq('id', appointmentId)
+
+    await sendCallPush(supabase, patientId, appointmentId, mockRoom.url, mockRoom.name, doctorName)
+
     return NextResponse.json({
       roomUrl: mockRoom.url,
       roomName: mockRoom.name,
@@ -102,9 +193,6 @@ export async function POST(request: Request) {
     room = await dailyRes.json()
   }
 
-  const supabase = getServiceClient()
-
-  // Persist room details and update appointment status
   await supabase
     .from('appointments')
     .update({
@@ -115,41 +203,7 @@ export async function POST(request: Request) {
     })
     .eq('id', appointmentId)
 
-  // Look up the patient's Expo push token(s)
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('token, platform')
-    .eq('user_id', patientId)
-    .in('platform', ['ios', 'android'])
-
-  if (subs && subs.length > 0) {
-    const messages = (subs as { token: string; platform: string }[]).map((s) => ({
-      to: s.token,
-      title: `Dr. ${doctorName} is ready for your appointment`,
-      body: 'Tap to join your video consultation now',
-      data: {
-        type: 'call_started',
-        appointmentId,
-        roomUrl: room.url,
-        roomName: room.name,
-        doctorName,
-      },
-      sound: 'default',
-      priority: 'high',
-      channelId: 'dose-reminders',
-    }))
-
-    // Send via Expo Push API — fire and forget
-    fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-      },
-      body: JSON.stringify(messages),
-    }).catch(console.error)
-  }
+  await sendCallPush(supabase, patientId, appointmentId, room.url, room.name, doctorName)
 
   return NextResponse.json({
     roomUrl: room.url,

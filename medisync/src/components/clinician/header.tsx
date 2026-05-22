@@ -1,143 +1,191 @@
-'use client'
+'use client';
 
-import { useEffect, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { Bell, HelpCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
-import { useNotificationStore } from '@/lib/stores/notificationStore'
-import type { CareAlert, Profile } from '@/types'
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import {
+  Bell,
+  HelpCircle,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  BookOpen,
+  Mail,
+  ExternalLink,
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { useNotificationStore } from '@/lib/stores/notificationStore';
+import { EmergencyModal } from '@/components/clinician/EmergencyModal';
+import type { CareAlert, Profile } from '@/types';
 
 interface ClinicianHeaderProps {
-  profile: Profile
+  profile: Profile;
+  sidebarWidth: number;
 }
 
-const pageTitles: Record<string, string> = {
+const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/patients': 'Patients',
   '/telehealth': 'Telehealth',
   '/schedule': 'Schedule',
   '/settings': 'Settings',
-}
+};
 
-function getInitials(name: string): string {
+function getInitials(name: string) {
   return name
     .split(' ')
-    .map((part) => part.charAt(0).toUpperCase())
+    .map((p) => p.charAt(0).toUpperCase())
     .slice(0, 2)
-    .join('')
+    .join('');
 }
 
-function getPageTitle(pathname: string): string {
-  for (const [route, title] of Object.entries(pageTitles)) {
-    if (pathname === route || pathname.startsWith(route + '/')) return title
+function avatarColor(name: string) {
+  const palette = ['#0A7B5C', '#3B82F6', '#7C3AED', '#DB2777', '#D97706', '#059669'];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return palette[Math.abs(h) % palette.length];
+}
+
+function getTitle(pathname: string) {
+  for (const [route, title] of Object.entries(PAGE_TITLES)) {
+    if (pathname === route || pathname.startsWith(route + '/')) return title;
   }
-  return 'MediSync'
+  return 'MediSync';
 }
 
 function SeverityIcon({ severity }: { severity: CareAlert['severity'] }) {
   if (severity === 'high' || severity === 'critical')
-    return <AlertTriangle className="size-3.5 text-red-500 shrink-0" />
+    return <AlertTriangle className="size-3.5 shrink-0" style={{ color: 'var(--ms-critical)' }} />;
   if (severity === 'moderate')
-    return <AlertCircle className="size-3.5 text-amber-500 shrink-0" />
-  return <Info className="size-3.5 text-blue-500 shrink-0" />
+    return <AlertCircle className="size-3.5 shrink-0" style={{ color: 'var(--ms-warn)' }} />;
+  return <Info className="size-3.5 shrink-0" style={{ color: 'var(--ms-blue)' }} />;
 }
 
-export function ClinicianHeader({ profile }: ClinicianHeaderProps) {
-  const pathname = usePathname()
-  const title = getPageTitle(pathname)
+export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps) {
+  const pathname = usePathname();
+  const title = getTitle(pathname);
 
-  const [panelOpen, setPanelOpen] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
 
-  const unreadCount = useNotificationStore((s) => s.unreadCount)
-  const alerts = useNotificationStore((s) => s.alerts)
-  const markAllRead = useNotificationStore((s) => s.markAllRead)
+  const notifRef = useRef<HTMLDivElement>(null);
+  const helpRef = useRef<HTMLDivElement>(null);
 
-  // Close panel on outside click
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const alerts = useNotificationStore((s) => s.alerts);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setPanelOpen(false)
-      }
+    function onOutsideClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
     }
-    if (panelOpen) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [panelOpen])
+    if (notifOpen || helpOpen) document.addEventListener('mousedown', onOutsideClick);
+    return () => document.removeEventListener('mousedown', onOutsideClick);
+  }, [notifOpen, helpOpen]);
 
   async function handleMarkAllRead() {
-    markAllRead()
-    setPanelOpen(false)
-
-    const supabase = createClient()
-    await supabase
-      .from('care_alerts')
-      .update({ is_read: true })
-      .eq('is_read', false)
+    markAllRead();
+    setNotifOpen(false);
+    const supabase = createClient();
+    await supabase.from('care_alerts').update({ is_read: true }).eq('is_read', false);
   }
 
-  const recentAlerts = alerts.slice(0, 5)
+  const recentAlerts = alerts.slice(0, 5);
+  const color = avatarColor(profile.full_name);
 
   return (
     <header
-      className={cn(
-        'fixed top-0 left-[240px] right-0 h-16 bg-white shadow-sm z-40',
-        'flex items-center justify-between px-6'
-      )}
+      className="fixed top-0 right-0 h-16 z-40 flex items-center justify-between px-6"
+      style={{
+        left: sidebarWidth,
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: '1px solid var(--ms-border)',
+        boxShadow: 'var(--ms-shadow-sm)',
+        transition: 'left 300ms ease',
+      }}
     >
-      {/* Left: Page title */}
-      <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+      {/* Left: page title */}
+      <h1
+        className="text-[17px] font-semibold truncate"
+        style={{ color: 'var(--ms-text-primary)', letterSpacing: '-0.02em' }}
+      >
+        {title}
+      </h1>
 
-      {/* Right: Actions */}
-      <div className="flex items-center gap-3">
-        {/* Bell with notification count */}
-        <div className="relative" ref={panelRef}>
+      {/* Right: action cluster */}
+      <div className="flex items-center gap-1.5">
+        {/* Notification bell */}
+        <div className="relative" ref={notifRef}>
           <button
-            onClick={() => setPanelOpen((prev) => !prev)}
-            className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            onClick={() => { setNotifOpen((p) => !p); setHelpOpen(false); }}
+            className="relative p-2 rounded-lg transition-colors duration-150"
+            style={{ color: 'var(--ms-text-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-surface-raised)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
             aria-label="Notifications"
           >
-            <Bell className="size-5 text-gray-600" />
+            <Bell className="size-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none"
+                style={{ backgroundColor: 'var(--ms-critical)' }}
+              >
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </button>
 
-          {/* Notification panel */}
-          {panelOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <span className="text-sm font-semibold text-gray-800">
+          {notifOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl z-50 overflow-hidden"
+              style={{ boxShadow: 'var(--ms-shadow-lg)', border: '1px solid var(--ms-border)' }}
+            >
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{ borderBottom: '1px solid var(--ms-border)' }}
+              >
+                <span className="text-sm font-semibold" style={{ color: 'var(--ms-text-primary)' }}>
                   Notifications
                   {unreadCount > 0 && (
-                    <span className="ml-2 text-xs bg-red-100 text-red-600 font-medium px-1.5 py-0.5 rounded-full">
+                    <span
+                      className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#FEE2E2', color: 'var(--ms-critical)' }}
+                    >
                       {unreadCount} new
                     </span>
                   )}
                 </span>
               </div>
 
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+              <div className="max-h-72 overflow-y-auto">
                 {recentAlerts.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-6">No notifications</p>
+                  <p
+                    className="text-xs text-center py-8"
+                    style={{ color: 'var(--ms-text-tertiary)' }}
+                  >
+                    No notifications
+                  </p>
                 ) : (
                   recentAlerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={cn(
-                        'flex items-start gap-2.5 px-4 py-3',
-                        !alert.is_read && 'bg-gray-50'
-                      )}
+                      className="flex items-start gap-2.5 px-4 py-3"
+                      style={{
+                        backgroundColor: !alert.is_read ? 'var(--ms-surface-raised)' : undefined,
+                        borderBottom: '1px solid var(--ms-border)',
+                      }}
                     >
                       <SeverityIcon severity={alert.severity} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-700 leading-snug line-clamp-2">
+                        <p className="text-xs leading-snug line-clamp-2"
+                          style={{ color: 'var(--ms-text-primary)' }}>
                           {alert.message}
                         </p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
+                        <p className="text-[10px] mt-0.5" style={{ color: 'var(--ms-text-tertiary)' }}>
                           {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
                         </p>
                       </div>
@@ -147,10 +195,14 @@ export function ClinicianHeader({ profile }: ClinicianHeaderProps) {
               </div>
 
               {recentAlerts.length > 0 && (
-                <div className="px-4 py-2.5 border-t border-gray-100">
+                <div
+                  className="px-4 py-2.5"
+                  style={{ borderTop: '1px solid var(--ms-border)' }}
+                >
                   <button
                     onClick={handleMarkAllRead}
-                    className="w-full text-xs text-[#0D6B5E] font-medium hover:underline text-center"
+                    className="w-full text-xs font-medium text-center hover:underline"
+                    style={{ color: 'var(--ms-primary)' }}
                   >
                     Mark all as read
                   </button>
@@ -161,22 +213,122 @@ export function ClinicianHeader({ profile }: ClinicianHeaderProps) {
         </div>
 
         {/* Help icon */}
-        <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <HelpCircle className="size-5 text-gray-600" />
-        </button>
+        <div className="relative" ref={helpRef}>
+          <button
+            onClick={() => { setHelpOpen((p) => !p); setNotifOpen(false); }}
+            className="p-2 rounded-lg transition-colors duration-150"
+            style={{ color: 'var(--ms-text-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-surface-raised)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
+            aria-label="Help"
+          >
+            <HelpCircle className="size-5" />
+          </button>
 
-        {/* Emergency button */}
-        <button className="bg-red-500 text-white rounded-full px-4 py-1.5 text-sm font-medium hover:bg-red-600 transition-colors">
+          {helpOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl z-50 overflow-hidden"
+              style={{ boxShadow: 'var(--ms-shadow-lg)', border: '1px solid var(--ms-border)' }}
+            >
+              <div
+                className="px-4 py-3"
+                style={{ borderBottom: '1px solid var(--ms-border)' }}
+              >
+                <span className="text-sm font-semibold" style={{ color: 'var(--ms-text-primary)' }}>
+                  Help &amp; Support
+                </span>
+              </div>
+              <div className="py-1">
+                {[
+                  { href: 'mailto:support@medisync.health', icon: Mail, label: 'Contact Support', external: false },
+                  { href: 'https://docs.medisync.health', icon: BookOpen, label: 'Documentation', external: true },
+                ].map(({ href, icon: Icon, label, external }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target={external ? '_blank' : undefined}
+                    rel={external ? 'noopener noreferrer' : undefined}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150"
+                    style={{ color: 'var(--ms-text-primary)' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-surface-raised)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
+                    onClick={() => setHelpOpen(false)}
+                  >
+                    <Icon className="size-4 shrink-0" style={{ color: 'var(--ms-text-tertiary)' }} />
+                    {label}
+                    {external && (
+                      <ExternalLink className="size-3 ml-auto" style={{ color: 'var(--ms-text-tertiary)' }} />
+                    )}
+                  </a>
+                ))}
+              </div>
+              <div
+                className="px-4 py-3"
+                style={{ borderTop: '1px solid var(--ms-border)', backgroundColor: 'var(--ms-surface-raised)' }}
+              >
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-widest mb-2"
+                  style={{ color: 'var(--ms-text-tertiary)' }}
+                >
+                  Shortcuts
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    ['Patients', 'G then P'],
+                    ['Telehealth', 'G then T'],
+                    ['Schedule', 'G then S'],
+                  ].map(([action, keys]) => (
+                    <div key={action} className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--ms-text-secondary)' }}>
+                        {action}
+                      </span>
+                      <kbd
+                        className="text-[10px] rounded px-1.5 py-0.5 font-mono"
+                        style={{
+                          backgroundColor: 'white',
+                          border: '1px solid var(--ms-border)',
+                          color: 'var(--ms-text-secondary)',
+                        }}
+                      >
+                        {keys}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Emergency pill */}
+        <button
+          onClick={() => setEmergencyOpen(true)}
+          className="flex items-center gap-1.5 rounded-full text-white text-xs font-semibold px-3.5 py-1.5 transition-colors duration-150"
+          style={{
+            backgroundColor: 'var(--ms-critical)',
+            boxShadow: '0 2px 8px rgba(220,38,38,0.30)',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#b91c1c'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-critical)'; }}
+        >
+          <AlertTriangle className="size-3.5" />
           EMERGENCY
         </button>
 
-        {/* Avatar initials */}
-        <div className="size-9 rounded-full bg-[#0D6B5E] flex items-center justify-center">
-          <span className="text-white text-sm font-semibold">
-            {getInitials(profile.full_name)}
-          </span>
+        <EmergencyModal
+          open={emergencyOpen}
+          onClose={() => setEmergencyOpen(false)}
+          clinicianName={profile.full_name}
+        />
+
+        {/* Avatar */}
+        <div
+          className="size-8 rounded-full flex items-center justify-center text-white text-xs font-semibold select-none ml-1 shrink-0"
+          style={{ backgroundColor: color }}
+        >
+          {getInitials(profile.full_name)}
         </div>
       </div>
     </header>
-  )
+  );
 }

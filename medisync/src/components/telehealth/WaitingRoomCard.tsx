@@ -1,8 +1,7 @@
-import { Video, Loader2 } from 'lucide-react'
+import { Video, Loader2, PhoneOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface WaitingRoomCardProps {
-  id: string
   name: string
   initials: string
   reason: string
@@ -11,6 +10,7 @@ interface WaitingRoomCardProps {
   isActive: boolean
   onClick: () => void
   onStartCall?: () => void
+  onEndCall?: () => void
   isStartingCall?: boolean
 }
 
@@ -23,6 +23,7 @@ export function WaitingRoomCard({
   isActive,
   onClick,
   onStartCall,
+  onEndCall,
   isStartingCall = false,
 }: WaitingRoomCardProps) {
   return (
@@ -57,6 +58,19 @@ export function WaitingRoomCard({
           </span>
         ) : (
           <span className="text-xs text-gray-400 font-medium">{waitMinutes} MIN</span>
+        )}
+
+        {status === 'in-call' && onEndCall && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onEndCall()
+            }}
+            className="flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-semibold px-2 py-1 rounded transition-colors whitespace-nowrap"
+          >
+            <PhoneOff className="size-2.5" />
+            End Call
+          </button>
         )}
 
         {onStartCall && status !== 'in-call' && (

@@ -8,7 +8,23 @@
       "Bash(Select-Object -First 20)",
       "Bash(Get-Content *)",
       "Bash(npx supabase *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\MediSync\\\\medisync\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(npx eas-cli *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\" \"D:\\\\MediSync\\\\medisync-mobile\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"D:\\\\MediSync\\\\medisync\\\\src\\\\app\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(Select-String -Pattern \"patient|Patient\")",
+      "Bash(Get-Unique)",
+      "Bash(dir \"D:\\\\MediSync\\\\medisync\\\\src\\\\app\")",
+      "Bash(xargs grep -l \"AppointmentEntry\\\\|Appointment History\")",
+      "Bash(xargs ls -la)",
+      "Bash(xargs grep -l \"appointment\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\MediSync\\\\medisync\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
     ]
   }
 }

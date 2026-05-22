@@ -17,17 +17,6 @@ function getServiceClient() {
   )
 }
 
-const SEED_PATIENTS: PatientTableRow[] = [
-  { id: '1', full_name: 'Maria Santos',  active_med_count: 3, pdc_score: 82, inventory_days: 18, risk_level: 'MODERATE' },
-  { id: '2', full_name: 'James Wilson',  active_med_count: 5, pdc_score: 54, inventory_days: 3,  risk_level: 'CRITICAL' },
-  { id: '3', full_name: 'Aisha Johnson', active_med_count: 2, pdc_score: 91, inventory_days: 22, risk_level: 'LOW'      },
-  { id: '4', full_name: 'Robert Chen',   active_med_count: 4, pdc_score: 61, inventory_days: 5,  risk_level: 'HIGH'     },
-  { id: '5', full_name: 'Lisa Park',     active_med_count: 3, pdc_score: 75, inventory_days: 12, risk_level: 'MODERATE' },
-  { id: '6', full_name: 'David Okafor',  active_med_count: 1, pdc_score: 88, inventory_days: 26, risk_level: 'LOW'      },
-  { id: '7', full_name: 'Emma Davis',    active_med_count: 4, pdc_score: 58, inventory_days: 0,  risk_level: 'HIGH'     },
-  { id: '8', full_name: 'Carlos Rivera', active_med_count: 2, pdc_score: 77, inventory_days: 14, risk_level: 'MODERATE' },
-]
-
 async function PatientsData() {
   const supabase = getServiceClient()
 
@@ -55,25 +44,23 @@ async function PatientsData() {
     dispense: { remaining_count: number; dispensed_at: string }[]
   }
 
-  const rows: PatientTableRow[] =
-    data && data.length > 0
-      ? (data as RawRow[]).map((p) => {
-          const activeRx = (p.rx ?? []).filter((r) => r.status === 'active')
-          const latestDispense = [...(p.dispense ?? [])].sort(
-            (a, b) =>
-              new Date(b.dispensed_at).getTime() - new Date(a.dispensed_at).getTime()
-          )[0]
-          const profileObj = Array.isArray(p.profile) ? p.profile[0] : p.profile
-          return {
-            id: p.id,
-            full_name: profileObj?.full_name || 'Unknown',
-            active_med_count: activeRx.length,
-            pdc_score: p.pdc?.[0]?.score ?? 0,
-            inventory_days: latestDispense?.remaining_count ?? 20,
-            risk_level: p.risk_level,
-          }
-        })
-      : SEED_PATIENTS
+  const rows: PatientTableRow[] = (data ?? []).map((p) => {
+    const row = p as RawRow
+    const activeRx = (row.rx ?? []).filter((r) => r.status === 'active')
+    const latestDispense = [...(row.dispense ?? [])].sort(
+      (a, b) =>
+        new Date(b.dispensed_at).getTime() - new Date(a.dispensed_at).getTime()
+    )[0]
+    const profileObj = Array.isArray(row.profile) ? row.profile[0] : row.profile
+    return {
+      id: row.id,
+      full_name: profileObj?.full_name || 'Unknown',
+      active_med_count: activeRx.length,
+      pdc_score: row.pdc?.[0]?.score ?? 0,
+      inventory_days: latestDispense?.remaining_count ?? 20,
+      risk_level: row.risk_level,
+    }
+  })
 
   return <PatientsTable patients={rows} />
 }

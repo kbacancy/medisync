@@ -36,9 +36,17 @@ export async function registerForPushNotifications(
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('dose-reminders', {
       name: 'Dose Reminders',
-      importance: Notifications.AndroidImportance.MAX,
+      importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#0D6B5E',
+    });
+    await Notifications.setNotificationChannelAsync('telehealth-calls', {
+      name: 'Incoming Video Calls',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 500, 200, 500],
+      lightColor: '#0D6B5E',
+      sound: 'default',
+      bypassDnd: true,
     });
   }
 
@@ -47,12 +55,16 @@ export async function registerForPushNotifications(
       Constants.expoConfig?.extra?.eas?.projectId ??
       Constants.easConfig?.projectId;
     if (!projectId) {
-      console.warn('EAS projectId not found — push token skipped');
+      console.error(
+        '[Push] EAS projectId missing — add it to app.json under expo.extra.eas.projectId. ' +
+        'Run: npx eas init   to link this project and populate the ID automatically.'
+      );
       return null;
     }
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    console.log('[Push] Token obtained:', token);
 
-    await supabase.from('push_subscriptions').upsert(
+    const { error: upsertErr } = await supabase.from('push_subscriptions').upsert(
       {
         user_id: userId,
         token,
@@ -62,9 +74,15 @@ export async function registerForPushNotifications(
       { onConflict: 'user_id' }
     );
 
+    if (upsertErr) {
+      console.error('[Push] Failed to store token:', upsertErr.message);
+      return null;
+    }
+
+    console.log('[Push] Token stored for user', userId);
     return token;
   } catch (err) {
-    console.error('Push registration error:', err);
+    console.error('[Push] Registration error:', err);
     return null;
   }
 }

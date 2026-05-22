@@ -15,7 +15,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { supabase } from '../lib/supabase/client';
 import { OfflineBanner } from '../components/ui/OfflineBanner';
 import { initSyncQueue, setupNetworkListener } from '../lib/offline/syncQueue';
-import { setupNotificationHandlers } from '../lib/notifications/push';
+import {
+  setupNotificationHandlers,
+  registerForPushNotifications,
+} from '../lib/notifications/push';
 import {
   setupCallNotificationHandler,
   setupForegroundCallHandler,
@@ -54,10 +57,16 @@ export default function RootLayout() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (data.session?.user) {
+        registerForPushNotifications(data.session.user.id).catch(console.error);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (newSession?.user) {
+        registerForPushNotifications(newSession.user.id).catch(console.error);
+      }
     });
 
     return () => listener.subscription.unsubscribe();

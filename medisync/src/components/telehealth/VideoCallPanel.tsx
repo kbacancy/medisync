@@ -133,11 +133,29 @@ export function VideoCallPanel({
         co.on('joined-meeting', () => {
           if (cancelled) return
           setCallState('waiting')
-          const local = co.participants()?.local
+          const all = co.participants() ?? {}
+          const local = all.local
           const vid = local?.tracks?.video?.persistentTrack
           const aud = local?.tracks?.audio?.persistentTrack
           if (vid) mergeTrack(localVideoRef.current, vid)
           if (aud) mergeTrack(localVideoRef.current, aud)
+
+          // Patient may already be in the room — pick them up immediately
+          const remote = Object.values(all).find(
+            (p: Record<string, unknown>) => !p.local
+          ) as Record<string, { persistentTrack?: MediaStreamTrack }> | undefined
+          if (remote) {
+            setCallState('live')
+            if (!timerRef.current) {
+              timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+            }
+            const rVid = (remote as Record<string, { tracks?: Record<string, { persistentTrack?: MediaStreamTrack }> }>)
+              ?.tracks?.video?.persistentTrack
+            const rAud = (remote as Record<string, { tracks?: Record<string, { persistentTrack?: MediaStreamTrack }> }>)
+              ?.tracks?.audio?.persistentTrack
+            if (rVid) mergeTrack(remoteVideoRef.current, rVid)
+            if (rAud) mergeTrack(remoteVideoRef.current, rAud)
+          }
         })
 
         // ── participant-joined: patient arrived ─────────────────────────────
@@ -152,6 +170,7 @@ export function VideoCallPanel({
           toast.success(`${patientNameRef.current} has joined the call`, {
             description: 'Video connection established',
           })
+          // tracks may be null here — track-started will deliver them when ready
           const tracks = p.tracks as Record<string, { persistentTrack?: MediaStreamTrack }>
           const vid = tracks?.video?.persistentTrack
           const aud = tracks?.audio?.persistentTrack

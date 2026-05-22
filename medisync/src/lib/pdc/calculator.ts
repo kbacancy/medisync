@@ -72,13 +72,6 @@ export function calculatePDCByPrescription(
   })
 }
 
-export function getRiskFromPDC(pdc: number): RiskLevel {
-  if (pdc >= 90) return 'LOW'
-  if (pdc >= 80) return 'MODERATE'
-  if (pdc >= 60) return 'HIGH'
-  return 'CRITICAL'
-}
-
 export function buildHeatmapData(
   logs: AdherenceLog[],
   days: number

@@ -28,12 +28,6 @@ interface DisplayAppointment {
   status: AppointmentStatus;
 }
 
-const SEED_APPOINTMENTS: DisplayAppointment[] = [
-  { id: '1', time: '09:00', ampm: 'AM', patient_name: 'Maria Santos', reason: 'Medication review', type: 'telehealth', status: 'scheduled' },
-  { id: '2', time: '10:30', ampm: 'AM', patient_name: 'James Wilson', reason: 'Follow-up consultation', type: 'in_person', status: 'scheduled' },
-  { id: '3', time: '02:00', ampm: 'PM', patient_name: 'Emma Davis', reason: 'Blood pressure check', type: 'telehealth', status: 'scheduled' },
-  { id: '4', time: '03:30', ampm: 'PM', patient_name: 'Robert Chen', reason: 'Annual physical', type: 'in_person', status: 'completed' },
-];
 
 function getInitials(name: string): string {
   return name
@@ -63,53 +57,47 @@ export default async function SchedulePage() {
   const { data: { user } } = await sessionClient.auth.getUser();
   if (!user) redirect('/login');
 
-  let appointments: DisplayAppointment[] = SEED_APPOINTMENTS;
+  const supabase = getServiceClient();
 
-  try {
-    const now = new Date();
-    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const supabase = getServiceClient();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const sevenDaysLater = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const { data } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        scheduled_at,
-        duration_minutes,
-        type,
-        reason,
-        status,
-        patient:patients!patient_id(profile:profiles!profile_id(full_name))
-      `)
-      .gte('scheduled_at', now.toISOString())
-      .lte('scheduled_at', sevenDaysLater.toISOString())
-      .order('scheduled_at', { ascending: true });
+  const { data } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      scheduled_at,
+      duration_minutes,
+      type,
+      reason,
+      status,
+      patient:patients!patient_id(profile:profiles!profile_id(full_name))
+    `)
+    .gte('scheduled_at', todayStart.toISOString())
+    .lte('scheduled_at', sevenDaysLater.toISOString())
+    .order('scheduled_at', { ascending: true });
 
-    if (data && data.length > 0) {
-      appointments = (data as AppointmentRow[]).map((row) => {
-        const patientRec = Array.isArray(row.patient) ? row.patient[0] : row.patient;
-        const profileObj = patientRec?.profile
-          ? (Array.isArray(patientRec.profile) ? patientRec.profile[0] : patientRec.profile)
-          : null;
-        const d = new Date(row.scheduled_at);
-        const hours = d.getHours();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const displayHour = hours % 12 || 12;
-        const mm = d.getMinutes().toString().padStart(2, '0');
-        return {
-          id: row.id,
-          time: `${displayHour.toString().padStart(2, '0')}:${mm}`,
-          ampm,
-          patient_name: profileObj?.full_name ?? 'Unknown',
-          reason: row.reason,
-          type: row.type,
-          status: row.status,
-        };
-      });
-    }
-  } catch {
-    // fall back to seed
-  }
+  const appointments: DisplayAppointment[] = (data as AppointmentRow[] ?? []).map((row) => {
+    const patientRec = Array.isArray(row.patient) ? row.patient[0] : row.patient;
+    const profileObj = patientRec?.profile
+      ? (Array.isArray(patientRec.profile) ? patientRec.profile[0] : patientRec.profile)
+      : null;
+    const d = new Date(row.scheduled_at);
+    const hours = d.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 || 12;
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    return {
+      id: row.id,
+      time: `${displayHour.toString().padStart(2, '0')}:${mm}`,
+      ampm,
+      patient_name: profileObj?.full_name ?? 'Unknown',
+      reason: row.reason,
+      type: row.type,
+      status: row.status,
+    };
+  });
 
   const today = format(new Date(), 'EEEE, MMMM d, yyyy');
 

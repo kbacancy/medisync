@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { toFHIRMedicationStatement } from '@/lib/fhir/adapter'
-import { calculatePDCByPrescription, getRiskFromPDC } from '@/lib/pdc/calculator'
+import { calculatePDCByPrescription, getPDCRiskLevel } from '@/lib/pdc/calculator'
 import type { AdherenceLog, Prescription, Profile } from '@/types'
 
 const schema = z.object({
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       { onConflict: 'patient_id,prescription_id' }
     )
 
-    const riskLevel = getRiskFromPDC(pdc)
+    const riskLevel = getPDCRiskLevel(pdc)
     await supabase
       .from('patients')
       .update({ risk_level: riskLevel })

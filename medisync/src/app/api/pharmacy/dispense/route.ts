@@ -24,14 +24,26 @@ export async function POST(request: Request) {
   const { patientId, prescriptionId, pharmacyName } = parsed.data;
   const supabase = await createClient();
 
+  const { data: prescription, error: rxError } = await supabase
+    .from('prescriptions')
+    .select('days_supply')
+    .eq('id', prescriptionId)
+    .single();
+
+  if (rxError || !prescription) {
+    return NextResponse.json({ error: 'Prescription not found' }, { status: 404 });
+  }
+
+  const { days_supply } = prescription;
+
   const { data: newRecord, error } = await supabase
     .from('dispense_records')
     .insert({
       patient_id: patientId,
       prescription_id: prescriptionId,
-      quantity_dispensed: 30,
-      days_supply: 30,
-      remaining_count: 30,
+      quantity_dispensed: days_supply,
+      days_supply,
+      remaining_count: days_supply,
       dispensed_at: new Date().toISOString(),
       pharmacy_name: pharmacyName ?? null,
     })

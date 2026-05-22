@@ -1,10 +1,6 @@
 import { redirect } from 'next/navigation';
-import { Toaster } from 'sonner';
 import { createClient } from '@/lib/supabase/server';
-import { SidebarNav } from '@/components/clinician/sidebar-nav';
-import { ClinicianHeader } from '@/components/clinician/header';
-import { CareAlertsRealtime } from '@/components/telehealth/CareAlertsRealtime';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ClinicianShell } from '@/components/clinician/shell';
 import type { Profile } from '@/types';
 
 export default async function ClinicianLayout({
@@ -28,26 +24,18 @@ export default async function ClinicianLayout({
     .eq('id', user.id)
     .single();
 
+  const emailPrefix = user.email?.split('@')[0] ?? 'Clinician';
+  const displayFallback =
+    emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+
   const profile: Profile = profileData ?? {
     id: user.id,
     email: user.email ?? '',
-    full_name: user.email?.split('@')[0] ?? 'Clinician',
+    full_name: displayFallback,
     role: 'clinician',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
-  return (
-    <>
-      <SidebarNav profile={profile} />
-      <ClinicianHeader profile={profile} />
-      <CareAlertsRealtime doctorId={profile.id} />
-      <main className="ml-[240px] mt-16 min-h-[calc(100vh-64px)] bg-[#F4F6F8] overflow-y-auto">
-        <div className="p-6">
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </div>
-      </main>
-      <Toaster richColors position="top-right" />
-    </>
-  );
+  return <ClinicianShell profile={profile}>{children}</ClinicianShell>;
 }

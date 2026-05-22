@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RiskBadge } from '@/components/ui/risk-badge'
+import { MessageDrawer } from '@/components/patients/MessageDrawer'
 import type { RiskLevel } from '@/types'
 
 export interface PatientTableRow {
@@ -90,6 +91,7 @@ export function PatientsTable({ patients }: Props) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('risk_level')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [messagingPatient, setMessagingPatient] = useState<{ id: string; name: string } | null>(null)
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -249,6 +251,7 @@ export function PatientsTable({ patients }: Props) {
                           size="sm"
                           variant="outline"
                           className="text-xs h-7 gap-1"
+                          onClick={() => setMessagingPatient({ id: patient.id, name: patient.full_name })}
                         >
                           <MessageCircle className="size-3" />
                           Message
@@ -262,6 +265,14 @@ export function PatientsTable({ patients }: Props) {
           </tbody>
         </table>
       </div>
+
+      {messagingPatient && (
+        <MessageDrawer
+          patientId={messagingPatient.id}
+          patientName={messagingPatient.name}
+          onClose={() => setMessagingPatient(null)}
+        />
+      )}
     </div>
   )
 }

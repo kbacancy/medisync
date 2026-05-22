@@ -62,8 +62,10 @@ export default function RegisterPage() {
   return (
     <div className="flex min-h-full flex-col items-center justify-center bg-muted/40 px-4 py-12">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">MediSync</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Clinical management platform</p>
+        <Link href="/" className="inline-flex flex-col items-center gap-1 no-underline">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">MediSync</h1>
+          <p className="text-sm text-muted-foreground">Clinical management platform</p>
+        </Link>
       </div>
 
       <Card className="w-full max-w-sm">

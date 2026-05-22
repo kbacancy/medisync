@@ -27,7 +27,6 @@ import { TimeSection } from '../../components/medications/TimeSection';
 import { DoseCardSkeleton } from '../../components/ui/LoadingSkeleton';
 import {
   requestPermissions,
-  registerForPushNotifications,
   scheduleDoseReminder,
 } from '../../lib/notifications/push';
 import {
@@ -272,10 +271,6 @@ export default function MedicationsScreen() {
     const setup = async () => {
       const granted = await requestPermissions();
       if (granted && patientId) {
-        const { data: sessionData } = await supabase.auth.getUser();
-        if (sessionData.user) {
-          await registerForPushNotifications(sessionData.user.id);
-        }
         for (const presc of prescriptions) {
           const pendingLogs = logs.filter(
             (l) => l.prescription_id === presc.id && l.status === 'pending'

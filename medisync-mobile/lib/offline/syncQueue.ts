@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
+import { getApiUrl } from '../apiUrl';
 
 function uuidv4(): string {
   return Crypto.randomUUID();
@@ -65,7 +66,7 @@ export async function markSynced(id: string): Promise<void> {
 }
 
 export async function syncAll(): Promise<{ synced: number; failed: number }> {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const apiUrl = getApiUrl();
   const actions = await getPendingActions();
   let synced = 0;
   let failed = 0;

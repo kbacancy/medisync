@@ -11,13 +11,20 @@
     },
     "ios": {
       "bundleIdentifier": "com.medisync.mobile",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.medisync.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#0D6B5E"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -39,6 +46,13 @@
       "expo-secure-store",
       "expo-sqlite"
     ],
-    "scheme": "medisync"
+    "scheme": "medisync",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1b6ca721-a94a-4fc5-b283-6728fb6ffd59"
+      }
+    },
+    "owner": "ketanmistry"
   }
 }

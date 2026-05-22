@@ -1,11 +1,11 @@
-import { TrendingUp, TrendingDown, type LucideIcon } from 'lucide-react';
+import { ArrowUp, ArrowDown, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StatCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
-  iconBg: string;
+  accentColor: string;
   trend?: {
     direction: 'up' | 'down';
     percentage: number;
@@ -13,37 +13,58 @@ interface StatCardProps {
   className?: string;
 }
 
-export function StatCard({ title, value, icon: Icon, iconBg, trend, className }: StatCardProps) {
+export function StatCard({
+  title,
+  value,
+  icon: Icon,
+  accentColor,
+  trend,
+  className,
+}: StatCardProps) {
   return (
     <div
-      className={cn(
-        'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4',
-        className
-      )}
+      className={cn('bg-white rounded-xl p-5 flex items-center gap-4', className)}
+      style={{
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        borderLeft: `2px solid ${accentColor}`,
+      }}
     >
+      {/* Tinted icon circle */}
       <div
-        className={cn(
-          'size-12 shrink-0 rounded-full flex items-center justify-center',
-          iconBg
-        )}
+        className="size-12 shrink-0 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: `${accentColor}18` }}
       >
-        <Icon className="size-6 text-white" />
+        <Icon className="size-5" style={{ color: accentColor }} />
       </div>
 
+      {/* Value + label */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
+        <p
+          className="text-[13px] font-medium truncate"
+          style={{ color: 'var(--ms-text-secondary)' }}
+        >
+          {title}
+        </p>
+        <p
+          className="text-[28px] font-semibold leading-tight"
+          style={{
+            color: 'var(--ms-text-primary)',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {value}
+        </p>
         {trend && (
           <div
-            className={cn(
-              'flex items-center gap-1 mt-1 text-xs font-medium',
-              trend.direction === 'up' ? 'text-emerald-600' : 'text-red-500'
-            )}
+            className="flex items-center gap-1 mt-0.5 text-[12px] font-medium"
+            style={{
+              color: trend.direction === 'up' ? 'var(--ms-ok)' : 'var(--ms-critical)',
+            }}
           >
             {trend.direction === 'up' ? (
-              <TrendingUp className="size-3.5" />
+              <ArrowUp className="size-3" />
             ) : (
-              <TrendingDown className="size-3.5" />
+              <ArrowDown className="size-3" />
             )}
             <span>{trend.percentage}% vs last month</span>
           </div>
