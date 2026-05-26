@@ -110,7 +110,8 @@ export default function AppointmentsScreen() {
       .select('id')
       .eq('profile_id', userId)
       .single();
-    const pid = patientRow?.id ?? userId;
+    if (!patientRow) return;
+    const pid = patientRow.id;
     setPatientId(pid);
 
     const { data } = await supabase

@@ -118,7 +118,8 @@ export default function MedicationsScreen() {
       .eq('profile_id', userId)
       .single();
 
-    const pid = patientRow?.id ?? userId;
+    if (!patientRow) return;
+    const pid = patientRow.id;
     setPatientId(pid);
 
     const { data: prescData } = await supabase

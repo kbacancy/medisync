@@ -53,9 +53,18 @@ export default function RegisterScreen() {
 
   const onSubmit = async (data: FormData) => {
     setAuthError(null);
+
+    // Pass full_name + role in user_metadata so the handle_new_user DB trigger
+    // creates the profiles row with correct data before any JS code runs.
     const { data: signUpData, error } = await supabase.auth.signUp({
       email: data.email.trim().toLowerCase(),
       password: data.password,
+      options: {
+        data: {
+          full_name: data.full_name.trim(),
+          role: 'patient',
+        },
+      },
     });
 
     if (error) {
@@ -64,6 +73,7 @@ export default function RegisterScreen() {
     }
 
     if (signUpData.user) {
+      // The trigger may have already created the profile; ignore 23505 conflicts.
       const { error: profileError } = await supabase.from('profiles').insert({
         id: signUpData.user.id,
         email: data.email.trim().toLowerCase(),
@@ -73,6 +83,18 @@ export default function RegisterScreen() {
 
       if (profileError && profileError.code !== '23505') {
         setAuthError('Account created but profile setup failed. Please contact support.');
+        return;
+      }
+
+      // Create the patients row required for all medical data queries.
+      // The patients_self_insert RLS policy allows this for patient-role profiles.
+      // Ignore 23505 — a clinician may have already pre-created the row.
+      const { error: patientError } = await supabase.from('patients').insert({
+        profile_id: signUpData.user.id,
+      });
+
+      if (patientError && patientError.code !== '23505') {
+        setAuthError('Account created but patient record setup failed. Please contact support.');
         return;
       }
     }

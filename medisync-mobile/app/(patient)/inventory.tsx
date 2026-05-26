@@ -52,7 +52,8 @@ export default function InventoryScreen() {
       .select('id')
       .eq('profile_id', sessionData.user.id)
       .single();
-    const pid = patientRow?.id ?? sessionData.user.id;
+    if (!patientRow) return;
+    const pid = patientRow.id;
     setPatientId(pid);
 
     const { data: prescData } = await supabase
