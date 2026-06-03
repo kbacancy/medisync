@@ -17,6 +17,9 @@ export function InstallPrompt() {
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
+    // Only show on mobile screens (tablets and phones)
+    if (window.innerWidth >= 768) return
+
     // Don't show when already running as an installed PWA
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
