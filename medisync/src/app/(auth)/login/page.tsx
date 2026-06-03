@@ -29,7 +29,7 @@ export default function LoginPage() {
     setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
@@ -37,7 +37,18 @@ export default function LoginPage() {
       return
     }
 
-    router.push("/dashboard")
+    // Route based on role — patients must never land on clinician screens
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+
+    const role = profile?.role ?? 'patient'
+    const destination =
+      role === 'clinician' || role === 'coordinator' ? '/dashboard' : '/medications'
+
+    router.push(destination)
     router.refresh()
   }
 

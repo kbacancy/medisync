@@ -29,6 +29,11 @@ export default async function PatientLayout({
     .eq('id', user.id)
     .single();
 
+  // Clinicians who somehow reach a patient route get sent to their dashboard
+  if (profileData?.role === 'clinician' || profileData?.role === 'coordinator') {
+    redirect('/dashboard');
+  }
+
   const profile: Profile = profileData ?? {
     id: user.id,
     email: user.email ?? '',

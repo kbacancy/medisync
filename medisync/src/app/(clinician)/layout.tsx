@@ -24,6 +24,11 @@ export default async function ClinicianLayout({
     .eq('id', user.id)
     .single();
 
+  // Patients who somehow reach a clinician route get sent home
+  if (profileData?.role === 'patient') {
+    redirect('/medications');
+  }
+
   const emailPrefix = user.email?.split('@')[0] ?? 'Clinician';
   const displayFallback =
     emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);

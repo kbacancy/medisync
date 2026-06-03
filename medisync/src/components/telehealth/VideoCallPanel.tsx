@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { PhoneOff, Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,57 +15,36 @@ interface VideoCallPanelProps {
   onCallEnded: () => void
 }
 
-type CallState = 'connecting' | 'waiting' | 'live' | 'error'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((p) => p.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('')
-}
-
-async function loadJitsiScript(): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((window as any).JitsiMeetExternalAPI) return
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://meet.jit.si/external_api.js'
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load Jitsi'))
-    document.head.appendChild(script)
-  })
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function VideoCallPanel({
   appointmentId,
   patientName,
   doctorName,
-  // doctorId and roomUrl are unused with Jitsi (no token or API call needed)
+  // doctorId / roomUrl unused — Jitsi derives everything from roomName
   roomName,
   onCallEnded,
 }: VideoCallPanelProps) {
-  const [callState, setCallState] = useState<CallState>('connecting')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [isEndingCall, setIsEndingCall] = useState(false)
-
-  const containerRef = useRef<HTMLDivElement>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const apiRef = useRef<any>(null)
   const isEndingRef = useRef(false)
+
+  // Suppress unused-var warnings — kept in props for API compatibility
+  void patientName
+
+  // Jitsi config passed as URL hash — no server API key needed
+  const jitsiSrc =
+    `https://meet.jit.si/${encodeURIComponent(roomName)}` +
+    `#config.startWithVideoMuted=false` +
+    `&config.startWithAudioMuted=false` +
+    `&config.disableDeepLinking=true` +
+    `&config.prejoinPageEnabled=false` +
+    `&userInfo.displayName=${encodeURIComponent(doctorName)}`
 
   const handleEndCall = useCallback(async () => {
     if (isEndingRef.current) return
     isEndingRef.current = true
     setIsEndingCall(true)
-    try {
-      apiRef.current?.executeCommand('hangup')
-    } catch { /* ignore */ }
     await fetch('/api/telehealth/end-room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -75,126 +53,51 @@ export function VideoCallPanel({
     onCallEnded()
   }, [appointmentId, roomName, onCallEnded])
 
-  // Keep a stable ref so the Jitsi event listener always sees the latest version
+  // Keep a stable ref so the postMessage listener always calls the latest version
   const handleEndCallRef = useRef(handleEndCall)
   handleEndCallRef.current = handleEndCall
 
+  // Listen for Jitsi's postMessage — fires when the doctor clicks Jitsi's own hangup
   useEffect(() => {
-    let cancelled = false
-
-    async function init() {
-      try {
-        await loadJitsiScript()
-        if (cancelled || !containerRef.current) return
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const JitsiAPI = (window as any).JitsiMeetExternalAPI
-        const api = new JitsiAPI('meet.jit.si', {
-          roomName,
-          parentNode: containerRef.current,
-          userInfo: { displayName: doctorName },
-          configOverwrite: {
-            startWithVideoMuted: false,
-            startWithAudioMuted: false,
-            disableDeepLinking: true,
-            prejoinPageEnabled: false,
-          },
-          interfaceConfigOverwrite: {
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            DEFAULT_BACKGROUND: '#1a2332',
-          },
-        })
-        apiRef.current = api
-
-        api.addEventListener('videoConferenceJoined', () => {
-          if (!cancelled) setCallState('waiting')
-        })
-        api.addEventListener('participantJoined', () => {
-          if (!cancelled) setCallState('live')
-        })
-        api.addEventListener('participantLeft', () => {
-          if (!cancelled) setCallState('waiting')
-        })
-        api.addEventListener('readyToClose', () => {
-          handleEndCallRef.current()
-        })
-        api.addEventListener('errorOccurred', (evt: { error?: { message?: string } }) => {
-          if (!cancelled) {
-            setCallState('error')
-            setErrorMsg(evt?.error?.message ?? 'An error occurred during the call')
-          }
-        })
-      } catch (err) {
-        if (!cancelled) {
-          setCallState('error')
-          setErrorMsg(err instanceof Error ? err.message : 'Failed to load video call')
-        }
-      }
+    function onMessage(event: MessageEvent) {
+      if (typeof event.origin !== 'string' || !event.origin.includes('jit.si')) return
+      const d = event.data
+      const isHangup =
+        d?.action === 'hangup' ||
+        d?.action === 'videoConferenceLeft' ||
+        d?.name === 'readyToClose'
+      if (isHangup) handleEndCallRef.current()
     }
-
-    init()
-
-    return () => {
-      cancelled = true
-      apiRef.current?.dispose()
-      apiRef.current = null
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomName, doctorName])
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
 
   return (
     <div
       className="relative rounded-xl overflow-hidden bg-[#1a2332] w-full"
       style={{ aspectRatio: '16/9' }}
     >
-      {/* Jitsi renders its full UI into this div */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      {/* Direct Jitsi iframe — explicit allow ensures camera/mic on mobile */}
+      <iframe
+        src={jitsiSrc}
+        allow="camera; microphone; fullscreen; display-capture; picture-in-picture"
+        allowFullScreen
+        className="absolute inset-0 w-full h-full border-0"
+        onLoad={() => setLoaded(true)}
+        title="Video call"
+      />
 
-      {/* Connecting — shown until Jitsi is ready */}
-      {callState === 'connecting' && (
+      {/* Loading overlay — shown until iframe fires onLoad */}
+      {!loaded && (
         <div className="absolute inset-0 bg-[#1a2332] flex flex-col items-center justify-center z-10">
           <Loader2 className="size-10 text-white/40 animate-spin mb-3" />
-          <p className="text-white/50 text-sm">Connecting to call…</p>
+          <p className="text-white/50 text-sm">Loading video call…</p>
         </div>
       )}
 
-      {/* Waiting — semi-transparent so Jitsi controls still work underneath */}
-      {callState === 'waiting' && (
-        <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center z-10 pointer-events-none">
-          <div className="relative size-16 mb-3">
-            <div className="size-16 rounded-full bg-white/10 flex items-center justify-center">
-              <span className="text-white/70 text-xl font-bold">
-                {getInitials(patientName)}
-              </span>
-            </div>
-            <span className="absolute inset-0 rounded-full border-2 border-white/25 animate-ping" />
-          </div>
-          <p className="text-white/60 text-sm font-medium">
-            Waiting for {patientName} to join…
-          </p>
-          <p className="text-white/30 text-xs mt-1.5">Push notification sent</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {callState === 'error' && (
-        <div className="absolute inset-0 bg-[#1a2332] flex flex-col items-center justify-center z-10">
-          <div className="size-14 rounded-full bg-red-500/20 flex items-center justify-center mb-3">
-            <span className="text-red-400 text-2xl font-bold leading-none">!</span>
-          </div>
-          <p className="text-white/80 text-sm font-semibold mb-1">Connection failed</p>
-          <p className="text-white/40 text-xs max-w-[220px] text-center leading-relaxed">
-            {errorMsg}
-          </p>
-        </div>
-      )}
-
-      {/* End Call button — always reachable, sits above Jitsi toolbar */}
-      {(callState === 'waiting' || callState === 'live') && (
-        <div className={cn('absolute top-3 right-3 z-20', callState === 'waiting' ? 'pointer-events-auto' : '')}>
+      {/* End Call — always reachable; calling this also handles Jitsi's built-in hangup via postMessage */}
+      {loaded && (
+        <div className="absolute top-3 right-3 z-20">
           <button
             onClick={handleEndCall}
             disabled={isEndingCall}
