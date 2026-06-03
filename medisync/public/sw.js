@@ -14,7 +14,7 @@ const CACHE_VERSION = 'medisync-v1'
 const APP_SHELL = [
   '/',
   '/manifest.json',
-  '/icons/icon-192.svg',
+  '/icons/icon-192.png',
   '/icons/icon-512.svg',
 ]
 
@@ -113,8 +113,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'MediSync'
   const options = {
     body: payload.body || '',
-    icon: '/icons/icon-192.svg',
-    badge: '/icons/icon-192.svg',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     tag: payload.tag || 'medisync-default',
     data: { url: payload.url || '/' },
     // Keeps the notification grouped on Android
