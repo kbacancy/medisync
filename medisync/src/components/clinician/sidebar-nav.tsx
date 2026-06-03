@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
@@ -120,7 +120,6 @@ function NavSection({
 
 export function SidebarNav({ profile, collapsed, onToggle }: SidebarNavProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const color = avatarColor(profile.full_name);
 
   const handleSignOut = async () => {
