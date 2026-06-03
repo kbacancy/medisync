@@ -1,7 +1,6 @@
 'use client';
 
 import { Bell, LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/types';
 
@@ -18,13 +17,10 @@ function getInitials(name: string): string {
 }
 
 export function PatientHeader({ profile }: PatientHeaderProps) {
-  const router = useRouter();
-
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    window.location.replace('/login');
   }
 
   return (
