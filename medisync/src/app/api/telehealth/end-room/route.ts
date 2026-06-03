@@ -32,14 +32,8 @@ export async function POST(request: Request) {
     )
   }
 
-  const { appointmentId, roomName, patientId } = parsed.data
+  const { appointmentId, patientId } = parsed.data
   const supabase = getServiceClient()
-
-  // Delete the Daily.co room — fire and forget (may already be gone)
-  fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` },
-  }).catch(console.error)
 
   // Mark appointment as completed
   await supabase

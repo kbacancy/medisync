@@ -17,40 +17,6 @@ function getServiceClient() {
   )
 }
 
-async function sendCallPush(
-  supabase: ReturnType<typeof getServiceClient>,
-  patientId: string,
-  appointmentId: string,
-  roomUrl: string,
-  roomName: string,
-  doctorName: string
-) {
-  // patientId is patients.id — resolve profile_id (= profiles.id = push_subscriptions.user_id)
-  const { data: patientRecord } = await supabase
-    .from('patients')
-    .select('profile_id')
-    .eq('id', patientId)
-    .maybeSingle()
-
-  const profileId = patientRecord?.profile_id
-  if (!profileId) {
-    console.error(`[Push] No patients row found for patientId=${patientId}`)
-    return
-  }
-
-  const callUrl = `/call?appointmentId=${encodeURIComponent(appointmentId)}&roomUrl=${encodeURIComponent(roomUrl)}&roomName=${encodeURIComponent(roomName)}`
-
-  await sendPushToUser(supabase, profileId, {
-    title:     `Dr. ${doctorName} is ready for your appointment`,
-    body:      'Tap to join your video consultation now',
-    url:       callUrl,
-    tag:       `call-${appointmentId}`,
-    data:      { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
-    priority:  'high',
-    channelId: 'telehealth-calls',
-  })
-}
-
 export async function POST(request: Request) {
   let body: unknown
   try {
@@ -70,91 +36,45 @@ export async function POST(request: Request) {
   const { appointmentId, patientId, doctorName } = parsed.data
   const supabase = getServiceClient()
 
-  // ── Dev mock: skip Daily.co API but still send push ───────────────────────
-  if (process.env.DAILY_MOCK === 'true') {
-    const mockRoom = {
-      url: `https://mock.daily.co/medisync-${appointmentId}`,
-      name: `medisync-${appointmentId}`,
-    }
-    await supabase
-      .from('appointments')
-      .update({
-        room_url: mockRoom.url,
-        room_name: mockRoom.name,
-        status: 'in-call',
-        started_at: new Date().toISOString(),
-      })
-      .eq('id', appointmentId)
-
-    await sendCallPush(supabase, patientId, appointmentId, mockRoom.url, mockRoom.name, doctorName)
-
-    return NextResponse.json({
-      roomUrl: mockRoom.url,
-      roomName: mockRoom.name,
-      appointmentId,
-    })
-  }
-
-  // Create a Daily.co room that expires in 1 hour
-  const dailyRes = await fetch('https://api.daily.co/v1/rooms', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.DAILY_API_KEY}`,
-    },
-    body: JSON.stringify({
-      name: `medisync-${appointmentId}`,
-      privacy: 'public',
-      properties: {
-        max_participants: 2,
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        eject_at_room_exp: true,
-      },
-    }),
-  })
-
-  let room: { url: string; name: string }
-
-  if (!dailyRes.ok) {
-    const errText = await dailyRes.text()
-    // Room already exists — retrieve it rather than failing
-    if (dailyRes.status === 400 && errText.includes('already exists')) {
-      const getRes = await fetch(
-        `https://api.daily.co/v1/rooms/medisync-${appointmentId}`,
-        { headers: { Authorization: `Bearer ${process.env.DAILY_API_KEY}` } }
-      )
-      if (!getRes.ok) {
-        return NextResponse.json(
-          { error: 'Failed to create or retrieve Daily.co room' },
-          { status: 502 }
-        )
-      }
-      room = await getRes.json()
-    } else {
-      return NextResponse.json(
-        { error: 'Daily.co room creation failed', detail: errText },
-        { status: 502 }
-      )
-    }
-  } else {
-    room = await dailyRes.json()
-  }
+  // Jitsi rooms are created automatically on first join — no API call needed.
+  // The room name is deterministic so both sides resolve to the same room.
+  const roomName = `medisync-${appointmentId}`
+  const roomUrl = `https://meet.jit.si/${roomName}`
 
   await supabase
     .from('appointments')
     .update({
-      room_url: room.url,
-      room_name: room.name,
+      room_url: roomUrl,
+      room_name: roomName,
       status: 'in-call',
       started_at: new Date().toISOString(),
     })
     .eq('id', appointmentId)
 
-  await sendCallPush(supabase, patientId, appointmentId, room.url, room.name, doctorName)
+  // Resolve patients.id → profiles.id for push_subscriptions lookup
+  const { data: patientRecord } = await supabase
+    .from('patients')
+    .select('profile_id')
+    .eq('id', patientId)
+    .maybeSingle()
 
-  return NextResponse.json({
-    roomUrl: room.url,
-    roomName: room.name,
-    appointmentId,
-  })
+  const profileId = patientRecord?.profile_id
+  if (profileId) {
+    const callUrl =
+      `/call?appointmentId=${encodeURIComponent(appointmentId)}` +
+      `&roomUrl=${encodeURIComponent(roomUrl)}` +
+      `&roomName=${encodeURIComponent(roomName)}`
+
+    await sendPushToUser(supabase, profileId, {
+      title: `Dr. ${doctorName} is ready for your appointment`,
+      body: 'Tap to join your video consultation now',
+      url: callUrl,
+      tag: `call-${appointmentId}`,
+      data: { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
+      priority: 'high',
+      channelId: 'telehealth-calls',
+    })
+  }
+
+  return NextResponse.json({ roomUrl, roomName, appointmentId })
 }
