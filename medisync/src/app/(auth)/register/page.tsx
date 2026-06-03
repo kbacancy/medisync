@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +16,6 @@ import {
 import { createClient } from "@/lib/supabase/client"
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -55,8 +53,7 @@ export default function RegisterPage() {
       })
     }
 
-    router.push(role === "patient" ? "/medications" : "/dashboard")
-    router.refresh()
+    window.location.replace(role === "patient" ? "/medications" : "/dashboard")
   }
 
   return (
