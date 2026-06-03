@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="40" fill="#0f172a"/>
+  <!-- Pill body -->
+  <rect x="54" y="80" width="84" height="32" rx="16" fill="#ffffff"/>
+  <!-- Divider line -->
+  <line x1="96" y1="80" x2="96" y2="112" stroke="#0f172a" stroke-width="3"/>
+  <!-- Left half tint -->
+  <path d="M54 96 Q54 80 70 80 H96 V112 H70 Q54 112 54 96Z" fill="#38bdf8" opacity="0.85"/>
+  <!-- Pulse / ECG line above pill -->
+  <polyline points="48,68 62,68 68,54 74,78 80,60 86,68 96,68 102,68 108,54 114,78 120,60 126,68 144,68"
+    fill="none" stroke="#38bdf8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

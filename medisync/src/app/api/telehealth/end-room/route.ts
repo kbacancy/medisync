@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushToUser } from '@/lib/notifications/sendPush'
 
 const schema = z.object({
   appointmentId: z.string().min(1),
@@ -50,32 +51,16 @@ export async function POST(request: Request) {
     .eq('id', appointmentId)
 
   // Notify patient that the call has ended
+  // Note: patientId here is profiles.id (push_subscriptions.user_id)
   if (patientId) {
-    const { data: subs } = await supabase
-      .from('push_subscriptions')
-      .select('token, platform')
-      .eq('user_id', patientId)
-      .in('platform', ['ios', 'android'])
-
-    if (subs && subs.length > 0) {
-      const messages = (subs as { token: string; platform: string }[]).map((s) => ({
-        to: s.token,
-        title: 'Your consultation has ended',
-        body: 'Thank you for your appointment. Have a great day!',
-        data: { type: 'call_ended', appointmentId },
-        sound: 'default',
-      }))
-
-      fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-        },
-        body: JSON.stringify(messages),
-      }).catch(console.error)
-    }
+    sendPushToUser(supabase, patientId, {
+      title:     'Your consultation has ended',
+      body:      'Thank you for your appointment. Have a great day!',
+      url:       '/medications',
+      tag:       `call-ended-${appointmentId}`,
+      data:      { type: 'call_ended', appointmentId },
+      channelId: 'default',
+    }).catch(console.error)
   }
 
   return NextResponse.json({ success: true })

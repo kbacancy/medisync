@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushToUser } from '@/lib/notifications/sendPush'
 
 const schema = z.object({
   appointmentId: z.string().min(1),
@@ -15,10 +16,6 @@ function getServiceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
-
-type ExpoTicket =
-  | { status: 'ok'; id: string }
-  | { status: 'error'; message: string; details?: { error: string } }
 
 async function sendCallPush(
   supabase: ReturnType<typeof getServiceClient>,
@@ -41,67 +38,15 @@ async function sendCallPush(
     return
   }
 
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('token, platform')
-    .eq('user_id', profileId)
-    .in('platform', ['ios', 'android'])
-
-  if (!subs || subs.length === 0) {
-    console.error(`[Push] No push token on file for profileId=${profileId}`)
-    return
-  }
-
-  const tokens = subs as { token: string; platform: string }[]
-
-  const messages = tokens.map((s) => ({
-    to: s.token,
-    title: `Dr. ${doctorName} is ready for your appointment`,
-    body: 'Tap to join your video consultation now',
-    data: {
-      type: 'call_started',
-      appointmentId,
-      roomUrl,
-      roomName,
-      doctorName,
-    },
-    sound: 'default',
-    priority: 'high',
+  await sendPushToUser(supabase, profileId, {
+    title:     `Dr. ${doctorName} is ready for your appointment`,
+    body:      'Tap to join your video consultation now',
+    url:       '/medications',
+    tag:       `call-${appointmentId}`,
+    data:      { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
+    priority:  'high',
     channelId: 'telehealth-calls',
-  }))
-
-  const expoRes = await fetch('https://exp.host/--/api/v2/push/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'Accept-Encoding': 'gzip, deflate',
-    },
-    body: JSON.stringify(messages),
   })
-
-  if (!expoRes.ok) {
-    console.error(`[Push] Expo API HTTP ${expoRes.status}: ${await expoRes.text()}`)
-    return
-  }
-
-  const { data: tickets } = (await expoRes.json()) as { data: ExpoTicket[] }
-  const staleTokens: string[] = []
-
-  tickets?.forEach((ticket, i) => {
-    if (ticket.status === 'error') {
-      console.error(`[Push] Ticket error for token ${tokens[i]?.token}: ${ticket.message}`)
-      if (ticket.details?.error === 'DeviceNotRegistered') {
-        staleTokens.push(tokens[i].token)
-      }
-    }
-  })
-
-  // Purge tokens that APNs/FCM rejected so they don't block future calls
-  if (staleTokens.length > 0) {
-    await supabase.from('push_subscriptions').delete().in('token', staleTokens)
-    console.error(`[Push] Deleted ${staleTokens.length} stale token(s)`)
-  }
 }
 
 export async function POST(request: Request) {

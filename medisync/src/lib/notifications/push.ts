@@ -15,8 +15,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Subscribe the current browser to Web Push and persist the subscription
- * to the push_subscriptions table for server-sent notifications.
+ * Subscribe the current browser to Web Push and persist the subscription to
+ * push_subscriptions with platform = 'web'.
+ *
+ * The table stores push data as a JSON string in the `token` column so it
+ * shares the same schema as the Expo mobile tokens (platform = 'ios'/'android').
+ * JSON shape: { endpoint, keys: { p256dh, auth } }
  */
 export async function subscribeToPush(userId: string): Promise<void> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
@@ -30,7 +34,6 @@ export async function subscribeToPush(userId: string): Promise<void> {
 
   let subscription = await registration.pushManager.getSubscription()
   if (!subscription) {
-    // Pass the raw base64url string — all modern browsers accept it directly
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: vapidPublicKey,
@@ -42,20 +45,30 @@ export async function subscribeToPush(userId: string): Promise<void> {
     keys: { p256dh: string; auth: string }
   }
 
+  // Serialise the Web Push subscription into the shared `token` column
+  const token = JSON.stringify({ endpoint, keys })
+
   const supabase = createClient()
   await supabase.from('push_subscriptions').upsert(
-    {
-      user_id: userId,
-      endpoint,
-      p256dh: keys.p256dh,
-      auth: keys.auth,
-    },
-    { onConflict: 'user_id' }
+    { user_id: userId, token, platform: 'web' },
+    { onConflict: 'user_id,platform' }
   )
+
+  // Re-subscribe whenever the service worker activates a new version so the
+  // push endpoint stays in sync with the active SW registration.
+  registration.addEventListener('updatefound', () => {
+    const newWorker = registration.installing
+    if (!newWorker) return
+    newWorker.addEventListener('statechange', () => {
+      if (newWorker.state === 'activated') {
+        subscribeToPush(userId).catch(console.warn)
+      }
+    })
+  })
 }
 
 /**
- * Show a local browser notification immediately (fallback when app is open).
+ * Show a local browser notification immediately (fallback when the app tab is open).
  */
 export async function showLocalNotification(
   title: string,
@@ -73,9 +86,8 @@ export async function showLocalNotification(
 }
 
 /**
- * Schedule a dose reminder by calling the server-side schedule route.
- * For development the server uses setTimeout; production should use
- * a Supabase Edge Function cron job.
+ * Schedule a dose reminder via the server-side schedule route.
+ * Falls back to a client-side setTimeout local notification if the request fails.
  */
 export async function scheduleDoseReminder(
   prescription: Prescription,
@@ -83,7 +95,7 @@ export async function scheduleDoseReminder(
 ): Promise<void> {
   const now = Date.now()
   const delay = scheduledTime.getTime() - now
-  if (delay <= 0) return // time already passed
+  if (delay <= 0) return
 
   try {
     await fetch('/api/notifications/schedule', {
@@ -97,13 +109,15 @@ export async function scheduleDoseReminder(
       }),
     })
   } catch {
-    // Fall back to local notification via setTimeout
     setTimeout(async () => {
-      await showLocalNotification('Time to take your medication', `${prescription.medication_name} ${prescription.dosage} — Tap to log dose`, {
-        data: { prescriptionId: prescription.id },
-        icon: '/icon-192.png',
-      })
+      await showLocalNotification(
+        'Time to take your medication',
+        `${prescription.medication_name} ${prescription.dosage} — Tap to log dose`,
+        {
+          data: { prescriptionId: prescription.id },
+          icon: '/icons/icon-192.svg',
+        }
+      )
     }, delay)
   }
 }
-

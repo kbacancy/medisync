@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushToUser } from '@/lib/notifications/sendPush'
 
 function getServiceClient() {
   return createClient(
@@ -41,11 +42,7 @@ const postSchema = z.object({
   message:    z.string().min(1).max(2000),
 })
 
-type ExpoTicket =
-  | { status: 'ok'; id: string }
-  | { status: 'error'; message: string; details?: { error: string } }
-
-async function sendMessagePush(
+async function notifyPatientNewMessage(
   supabase: ReturnType<typeof getServiceClient>,
   patientId: string,
   messageBody: string
@@ -58,49 +55,18 @@ async function sendMessagePush(
 
   if (!patientRecord?.profile_id) return
 
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('token, platform')
-    .eq('user_id', patientRecord.profile_id)
-    .in('platform', ['ios', 'android'])
+  const body =
+    messageBody.length > 80 ? `${messageBody.slice(0, 77)}…` : messageBody
 
-  if (!subs || subs.length === 0) return
-
-  const tokens = subs as { token: string; platform: string }[]
-  const messages = tokens.map((s) => ({
-    to: s.token,
-    title: 'New message from your doctor',
-    body: messageBody.length > 80 ? `${messageBody.slice(0, 77)}…` : messageBody,
-    data: { type: 'new_message', patientId },
-    sound: 'default',
-    priority: 'normal',
+  await sendPushToUser(supabase, patientRecord.profile_id, {
+    title:     'New message from your doctor',
+    body,
+    url:       '/medications',
+    tag:       'new-message',
+    data:      { type: 'new_message', patientId },
+    priority:  'normal',
     channelId: 'default',
-  }))
-
-  const expoRes = await fetch('https://exp.host/--/api/v2/push/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'Accept-Encoding': 'gzip, deflate',
-    },
-    body: JSON.stringify(messages),
   })
-
-  if (!expoRes.ok) return
-
-  const { data: tickets } = (await expoRes.json()) as { data: ExpoTicket[] }
-  const staleTokens = (tickets ?? [])
-    .map((t, i) =>
-      t.status === 'error' && t.details?.error === 'DeviceNotRegistered'
-        ? tokens[i]?.token
-        : null
-    )
-    .filter((t): t is string => t !== null)
-
-  if (staleTokens.length > 0) {
-    await supabase.from('push_subscriptions').delete().in('token', staleTokens)
-  }
 }
 
 export async function POST(request: Request) {
@@ -139,7 +105,7 @@ export async function POST(request: Request) {
 
   // Push-notify the patient when the clinician sends
   if (senderRole === 'clinician') {
-    await sendMessagePush(supabase, patientId, message)
+    await notifyPatientNewMessage(supabase, patientId, message)
   }
 
   return NextResponse.json({ message: newMsg })

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { PatientHeader } from '@/components/patient/header';
 import { TabBar } from '@/components/patient/tab-bar';
 import { OfflineBanner } from '@/components/patient/OfflineBanner';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { Profile } from '@/types';
 
@@ -41,7 +42,12 @@ export default async function PatientLayout({
     <>
       <PatientHeader profile={profile} />
       <OfflineBanner />
-      <main className="mt-[56px] mb-[60px] bg-[#F4F6F8] min-h-[calc(100vh-116px)] overflow-y-auto">
+      <InstallPrompt />
+      {/* Bottom padding = tab bar (60px) + iPhone safe-area-inset-bottom */}
+      <main
+        className="mt-[56px] bg-[#F4F6F8] min-h-[calc(100vh-116px)] overflow-y-auto"
+        style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+      >
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
       <TabBar />

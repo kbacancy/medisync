@@ -17,7 +17,7 @@ function getServiceClient() {
   )
 }
 
-function configureWebPush() {
+function configureWebPush(): boolean {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const privateKey = process.env.VAPID_PRIVATE_KEY
   const subject = process.env.VAPID_SUBJECT ?? 'mailto:admin@medisync.com'
@@ -48,8 +48,7 @@ export async function POST(request: Request) {
   const supabase = getServiceClient()
 
   const targetTime = new Date(scheduledTime).getTime()
-  const now = Date.now()
-  const delayMs = targetTime - now
+  const delayMs = targetTime - Date.now()
 
   if (delayMs <= 0) {
     return NextResponse.json({ error: 'Scheduled time is in the past' }, { status: 400 })
@@ -58,35 +57,56 @@ export async function POST(request: Request) {
   const payload = JSON.stringify({
     title: 'Time to take your medication',
     body: `${drugName} ${strength} — Tap to log dose`,
+    url: '/medications',
+    tag: `dose-${prescriptionId}`,
     data: { prescriptionId },
   })
 
-  // In production this would trigger a Supabase Edge Function or queue.
-  // For dev: fire-and-forget setTimeout on the server (process-lifetime only).
+  // In production this should be a Supabase Edge Function cron or pg_cron job.
+  // For dev: fire-and-forget setTimeout (process-lifetime only).
   setTimeout(async () => {
     if (!configureWebPush()) return
 
-    const { data: subscriptions } = await supabase
+    // Fetch only Web Push subscriptions — `token` holds serialised JSON:
+    // { endpoint, keys: { p256dh, auth } }
+    const { data: rows } = await supabase
       .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
+      .select('token')
+      .eq('platform', 'web')
 
-    for (const sub of subscriptions ?? []) {
+    const staleTokens: string[] = []
+
+    for (const row of rows ?? []) {
+      let sub: { endpoint: string; keys: { p256dh: string; auth: string } }
+      try {
+        sub = JSON.parse(row.token as string)
+      } catch {
+        continue // malformed token — skip
+      }
+
       try {
         await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint as string,
-            keys: { p256dh: sub.p256dh as string, auth: sub.auth as string },
-          },
+          { endpoint: sub.endpoint, keys: sub.keys },
           payload
         )
-      } catch {
-        // Subscription may have expired — silently skip
+      } catch (err: unknown) {
+        // 404 / 410 = subscription expired or unsubscribed
+        const status = (err as { statusCode?: number }).statusCode
+        if (status === 404 || status === 410) {
+          staleTokens.push(row.token as string)
+        }
       }
+    }
+
+    // Clean up expired subscriptions
+    if (staleTokens.length > 0) {
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .in('token', staleTokens)
+        .eq('platform', 'web')
     }
   }, delayMs)
 
-  return NextResponse.json(
-    { scheduled: true, delayMs, prescriptionId },
-    { status: 200 }
-  )
+  return NextResponse.json({ scheduled: true, delayMs, prescriptionId }, { status: 200 })
 }

@@ -38,6 +38,14 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
       },
+      // Allow the service worker to control the entire origin
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Service-Worker-Allowed', value: '/' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
     ]
   },
 }
