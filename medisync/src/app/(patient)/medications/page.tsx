@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { createClient } from '@/lib/supabase/server';
 import { MedicationTimeline } from '@/components/medications/MedicationTimeline';
 import { PushNotificationSetup } from '@/components/patient/PushNotificationSetup';
+import { ActiveCallBanner } from '@/components/patient/ActiveCallBanner';
 import type { PrescriptionWithDispense, AdherenceLog, DispenseRecord } from '@/types';
 
 const SEED_DISPENSE_RX1: DispenseRecord = {
@@ -232,6 +233,28 @@ export default async function MedicationsPage() {
 
   const patientId = patientData.id;
 
+  // Check for an active telehealth call waiting for the patient
+  const { data: activeCall } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      room_url,
+      room_name,
+      doctor:profiles!doctor_id(full_name)
+    `)
+    .eq('patient_id', patientId)
+    .eq('status', 'in-call')
+    .eq('type', 'telehealth')
+    .maybeSingle()
+
+  type ActiveCallRow = {
+    id: string
+    room_url: string | null
+    room_name: string | null
+    doctor: { full_name: string | null } | null
+  }
+  const call = activeCall as ActiveCallRow | null
+
   const { data: rxData } = await supabase
     .from('prescriptions')
     .select(
@@ -303,6 +326,14 @@ export default async function MedicationsPage() {
   return (
     <>
       <PushNotificationSetup userId={user.id} pendingDoses={pendingDoses} />
+      {call?.room_url && call?.room_name && (
+        <ActiveCallBanner
+          appointmentId={call.id}
+          roomUrl={call.room_url}
+          roomName={call.room_name}
+          doctorName={call.doctor?.full_name ?? 'your doctor'}
+        />
+      )}
       <MedicationTimeline
         prescriptions={prescriptions}
         adherenceLogs={adherenceLogs}

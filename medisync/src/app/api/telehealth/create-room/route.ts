@@ -38,10 +38,12 @@ async function sendCallPush(
     return
   }
 
+  const callUrl = `/call?appointmentId=${encodeURIComponent(appointmentId)}&roomUrl=${encodeURIComponent(roomUrl)}&roomName=${encodeURIComponent(roomName)}`
+
   await sendPushToUser(supabase, profileId, {
     title:     `Dr. ${doctorName} is ready for your appointment`,
     body:      'Tap to join your video consultation now',
-    url:       '/medications',
+    url:       callUrl,
     tag:       `call-${appointmentId}`,
     data:      { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
     priority:  'high',
