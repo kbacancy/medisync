@@ -9,7 +9,11 @@
  * Push notifications: handled here so they fire even when the app tab is closed.
  */
 
-const CACHE_VERSION = 'medisync-v1'
+const CACHE_VERSION = 'medisync-v2'
+
+// In development, Turbopack serves /_next/static/ chunks without content hashes,
+// so cache-first would serve stale bundles after source changes.
+const isDev = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 const APP_SHELL = [
   '/',
@@ -66,21 +70,24 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Next.js static assets: cache-first (filenames include content hash)
+  // Next.js static assets: cache-first (filenames include content hash in prod).
+  // Skip entirely in dev — unhashed Turbopack chunks must never be served stale.
   if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone()
-              caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone))
-            }
-            return response
-          })
+    if (!isDev) {
+      event.respondWith(
+        caches.match(request).then(
+          (cached) =>
+            cached ||
+            fetch(request).then((response) => {
+              if (response.ok) {
+                const clone = response.clone()
+                caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone))
+              }
+              return response
+            })
+        )
       )
-    )
+    }
     return
   }
 
