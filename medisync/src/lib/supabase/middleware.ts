@@ -57,11 +57,13 @@ export async function updateSession(request: NextRequest) {
 
     const url = request.nextUrl.clone()
 
-    // Authenticated user on a login/register page — bounce them home.
-    // Default to 'patient' only here: if the profile is missing the login
-    // page is the correct place to re-establish state anyway.
+    // Authenticated user on a login/register page — bounce them home,
+    // but only when the role is known. A null profile means we can't
+    // determine the role; let them stay on the auth page so they can
+    // sign out and re-register rather than being caught in a redirect loop.
     if (isAuthRoute) {
-      url.pathname = profile?.role === 'patient' ? '/medications' : '/dashboard'
+      if (!profile) return supabaseResponse
+      url.pathname = profile.role === 'patient' ? '/medications' : '/dashboard'
       return NextResponse.redirect(url)
     }
 

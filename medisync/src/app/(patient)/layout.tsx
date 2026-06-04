@@ -29,19 +29,17 @@ export default async function PatientLayout({
     .eq('id', user.id)
     .single();
 
-  // Clinicians who somehow reach a patient route get sent to their dashboard
-  if (profileData?.role === 'clinician' || profileData?.role === 'coordinator') {
+  // Profile missing → unknown role → re-authenticate (same rule as clinician layout).
+  if (!profileData) {
+    redirect('/login');
+  }
+
+  // Clinicians who reach a patient route get sent to their dashboard.
+  if (profileData.role === 'clinician' || profileData.role === 'coordinator') {
     redirect('/dashboard');
   }
 
-  const profile: Profile = profileData ?? {
-    id: user.id,
-    email: user.email ?? '',
-    full_name: user.email?.split('@')[0] ?? 'Patient',
-    role: 'patient',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const profile: Profile = profileData;
 
   return (
     <>
