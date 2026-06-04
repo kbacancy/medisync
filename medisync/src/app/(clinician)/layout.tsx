@@ -24,10 +24,14 @@ export default async function ClinicianLayout({
     .eq('id', user.id)
     .single();
 
-  // Redirect anyone who is not explicitly a clinician/coordinator.
-  // Checking for the positive set (not just === 'patient') means a missing
-  // profile or an unknown role is also blocked rather than silently allowed.
-  if (!profileData || (profileData.role !== 'clinician' && profileData.role !== 'coordinator')) {
+  // Profile missing → can't confirm role → re-authenticate rather than
+  // guessing. This covers new accounts and transient DB errors.
+  if (!profileData) {
+    redirect('/login');
+  }
+
+  // Patients who reach a clinician route are sent to their own home.
+  if (profileData.role === 'patient') {
     redirect('/medications');
   }
 

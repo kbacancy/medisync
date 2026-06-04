@@ -55,25 +55,28 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    const role = profile?.role ?? 'patient'
     const url = request.nextUrl.clone()
 
-    // Authenticated user visiting a login/register page → send home
+    // Authenticated user on a login/register page — bounce them home.
+    // Default to 'patient' only here: if the profile is missing the login
+    // page is the correct place to re-establish state anyway.
     if (isAuthRoute) {
-      url.pathname = role === 'patient' ? '/medications' : '/dashboard'
+      url.pathname = profile?.role === 'patient' ? '/medications' : '/dashboard'
       return NextResponse.redirect(url)
     }
 
-    // Patient trying to reach a clinician-only path
-    if (isClinicianPath && role === 'patient') {
-      url.pathname = '/medications'
-      return NextResponse.redirect(url)
-    }
-
-    // Clinician/coordinator trying to reach a patient-only path
-    if (isPatientPath && (role === 'clinician' || role === 'coordinator')) {
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+    // Route-level role guards — ONLY act when we have a confirmed role.
+    // If the profile query returned null (transient DB error, new account)
+    // let the request through; the layout's own guard will handle it.
+    if (profile) {
+      if (isClinicianPath && profile.role === 'patient') {
+        url.pathname = '/medications'
+        return NextResponse.redirect(url)
+      }
+      if (isPatientPath && (profile.role === 'clinician' || profile.role === 'coordinator')) {
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
     }
   }
 
