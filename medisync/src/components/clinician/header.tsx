@@ -341,7 +341,7 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
             onClick={() => { setUserOpen((p) => !p); setNotifOpen(false); setHelpOpen(false); }}
             className="size-8 rounded-full flex items-center justify-center text-white text-xs font-semibold select-none ring-2 ring-transparent transition-all duration-150"
             style={{ backgroundColor: color }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.ringColor = color; (e.currentTarget as HTMLElement).style.opacity = '0.85'; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85'; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
             aria-label="User menu"
             aria-expanded={userOpen}
