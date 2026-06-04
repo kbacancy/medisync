@@ -24,23 +24,14 @@ export default async function ClinicianLayout({
     .eq('id', user.id)
     .single();
 
-  // Patients who somehow reach a clinician route get sent home
-  if (profileData?.role === 'patient') {
+  // Redirect anyone who is not explicitly a clinician/coordinator.
+  // Checking for the positive set (not just === 'patient') means a missing
+  // profile or an unknown role is also blocked rather than silently allowed.
+  if (!profileData || (profileData.role !== 'clinician' && profileData.role !== 'coordinator')) {
     redirect('/medications');
   }
 
-  const emailPrefix = user.email?.split('@')[0] ?? 'Clinician';
-  const displayFallback =
-    emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-
-  const profile: Profile = profileData ?? {
-    id: user.id,
-    email: user.email ?? '',
-    full_name: displayFallback,
-    role: 'clinician',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const profile: Profile = profileData;
 
   return <ClinicianShell profile={profile}>{children}</ClinicianShell>;
 }

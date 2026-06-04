@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +16,6 @@ import {
 import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -48,8 +46,10 @@ export default function LoginPage() {
     const destination =
       role === 'clinician' || role === 'coordinator' ? '/dashboard' : '/medications'
 
-    router.push(destination)
-    router.refresh()
+    // Hard redirect clears the Next.js router cache so server components
+    // re-run under the new session — router.push() can serve stale clinician
+    // output to a patient who logs in after a clinician on the same browser.
+    window.location.replace(destination)
   }
 
   return (
