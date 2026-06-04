@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell,
   HelpCircle,
@@ -11,6 +11,9 @@ import {
   BookOpen,
   Mail,
   ExternalLink,
+  LogOut,
+  Settings,
+  User,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -66,12 +69,15 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
   const pathname = usePathname();
   const title = getTitle(pathname);
 
+  const router = useRouter();
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
+  const userRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const alerts = useNotificationStore((s) => s.alerts);
@@ -81,10 +87,18 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
     function onOutsideClick(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
       if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
+      if (userRef.current && !userRef.current.contains(e.target as Node)) setUserOpen(false);
     }
-    if (notifOpen || helpOpen) document.addEventListener('mousedown', onOutsideClick);
+    if (notifOpen || helpOpen || userOpen) document.addEventListener('mousedown', onOutsideClick);
     return () => document.removeEventListener('mousedown', onOutsideClick);
-  }, [notifOpen, helpOpen]);
+  }, [notifOpen, helpOpen, userOpen]);
+
+  async function handleSignOut() {
+    setUserOpen(false);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.replace('/login');
+  }
 
   async function handleMarkAllRead() {
     markAllRead();
@@ -321,12 +335,70 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
           clinicianName={profile.full_name}
         />
 
-        {/* Avatar */}
-        <div
-          className="size-8 rounded-full flex items-center justify-center text-white text-xs font-semibold select-none ml-1 shrink-0"
-          style={{ backgroundColor: color }}
-        >
-          {getInitials(profile.full_name)}
+        {/* Avatar — user menu trigger */}
+        <div className="relative ml-1" ref={userRef}>
+          <button
+            onClick={() => { setUserOpen((p) => !p); setNotifOpen(false); setHelpOpen(false); }}
+            className="size-8 rounded-full flex items-center justify-center text-white text-xs font-semibold select-none ring-2 ring-transparent transition-all duration-150"
+            style={{ backgroundColor: color }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.ringColor = color; (e.currentTarget as HTMLElement).style.opacity = '0.85'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+            aria-label="User menu"
+            aria-expanded={userOpen}
+          >
+            {getInitials(profile.full_name)}
+          </button>
+
+          {userOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl z-50 overflow-hidden"
+              style={{ boxShadow: 'var(--ms-shadow-lg)', border: '1px solid var(--ms-border)' }}
+            >
+              {/* Identity */}
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--ms-border)' }}>
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--ms-text-primary)' }}>
+                  {profile.full_name}
+                </p>
+                <p className="text-xs truncate mt-0.5" style={{ color: 'var(--ms-text-tertiary)' }}>
+                  {profile.email}
+                </p>
+                <span
+                  className="inline-block mt-1.5 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--ms-primary-light)', color: 'var(--ms-primary)' }}
+                >
+                  Clinician
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="py-1">
+                <button
+                  onClick={() => { setUserOpen(false); router.push('/settings'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150 text-left"
+                  style={{ color: 'var(--ms-text-primary)' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-surface-raised)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
+                >
+                  <Settings className="size-4 shrink-0" style={{ color: 'var(--ms-text-tertiary)' }} />
+                  Settings
+                </button>
+              </div>
+
+              {/* Sign out */}
+              <div className="py-1" style={{ borderTop: '1px solid var(--ms-border)' }}>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150 text-left"
+                  style={{ color: 'var(--ms-critical)' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#FEF2F2'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
+                >
+                  <LogOut className="size-4 shrink-0" />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
