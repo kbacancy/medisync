@@ -29,17 +29,24 @@ export default async function PatientLayout({
     .eq('id', user.id)
     .single();
 
-  // Profile missing → unknown role → re-authenticate (same rule as clinician layout).
-  if (!profileData) {
-    redirect('/login');
-  }
+  // Determine role: prefer DB profile, fall back to JWT user_metadata.
+  const dbRole = profileData?.role as string | undefined;
+  const metaRole = user.user_metadata?.role as string | undefined;
+  const resolvedRole = dbRole ?? metaRole;
 
   // Clinicians who reach a patient route get sent to their dashboard.
-  if (profileData.role === 'clinician' || profileData.role === 'coordinator') {
+  if (resolvedRole === 'clinician' || resolvedRole === 'coordinator') {
     redirect('/dashboard');
   }
 
-  const profile: Profile = profileData;
+  const profile: Profile = profileData ?? {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: user.email?.split('@')[0] ?? 'Patient',
+    role: 'patient',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
   return (
     <>

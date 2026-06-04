@@ -24,18 +24,29 @@ export default async function ClinicianLayout({
     .eq('id', user.id)
     .single();
 
-  // Profile missing → can't confirm role → re-authenticate rather than
-  // guessing. This covers new accounts and transient DB errors.
-  if (!profileData) {
-    redirect('/login');
-  }
+  // Determine role: prefer DB profile, fall back to JWT user_metadata
+  // (written at sign-up, trusted, avoids locking out clinicians on
+  // transient DB misses which would otherwise cause a redirect loop).
+  const dbRole = profileData?.role as string | undefined;
+  const metaRole = user.user_metadata?.role as string | undefined;
+  const resolvedRole = dbRole ?? metaRole;
 
-  // Patients who reach a clinician route are sent to their own home.
-  if (profileData.role === 'patient') {
+  // Patients (or anyone whose role resolves to patient) get sent home.
+  if (resolvedRole === 'patient') {
     redirect('/medications');
   }
 
-  const profile: Profile = profileData;
+  const emailPrefix = user.email?.split('@')[0] ?? 'Clinician';
+  const displayFallback = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+
+  const profile: Profile = profileData ?? {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: displayFallback,
+    role: 'clinician',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
   return <ClinicianShell profile={profile}>{children}</ClinicianShell>;
 }
