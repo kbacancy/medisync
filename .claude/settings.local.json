@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "PowerShell(git push origin main)",
+      "PowerShell(Get-ChildItem \"d:\\\\MediSync\" -Depth 2 | Where-Object { $_.PSIsContainer } | Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"d:\\\\MediSync\\\\medisync-mobile\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(xargs ls -la)",
+      "PowerShell(java -version 2>&1)",
+      "PowerShell($env:ANDROID_HOME)",
+      "PowerShell($env:JAVA_HOME)",
+      "Read(//c/Program Files/**)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Pill,
   BarChart2,
@@ -22,13 +23,14 @@ function TabBadge({ count }: { count: number }) {
 
 export default function PatientLayout() {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#0D6B5E',
         tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { paddingBottom: insets.bottom + 4, height: 56 + insets.bottom }],
         tabBarLabelStyle: styles.tabLabel,
         headerStyle: styles.header,
         headerTitleStyle: styles.headerTitle,
@@ -101,8 +103,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    height: 60,
-    paddingBottom: 8,
     paddingTop: 4,
   },
   tabLabel: {

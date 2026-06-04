@@ -20,6 +20,9 @@ medisync/coverage/
 medisync/*.tsbuildinfo
 medisync/next-env.d.ts
 
+# ─── Firebase credentials (contain API keys — never commit) ───────────────────
+medisync-mobile/google-services.json
+
 # ─── medisync-mobile (Expo / React Native) ────────────────────────────────────
 medisync-mobile/.expo/
 medisync-mobile/.expo-shared/

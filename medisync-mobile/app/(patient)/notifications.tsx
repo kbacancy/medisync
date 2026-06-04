@@ -6,12 +6,14 @@ import {
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { AlertTriangle, AlertCircle, Info, Bell } from 'lucide-react-native';
+import { AlertTriangle, AlertCircle, Info, Bell, FlaskConical } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase/client';
 import { CareAlert } from '../../types';
 import { useNotificationStore } from '../../store/notificationStore';
+import { fireTestNotification } from '../../lib/notifications/push';
 
 function timeAgo(isoDate: string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -123,6 +125,11 @@ export default function NotificationsScreen() {
     resetUnread();
   };
 
+  const handleTestNotification = async () => {
+    await fireTestNotification();
+    Alert.alert('Test sent', 'You should see a notification appear within a second. If nothing shows, check that notification permission was granted in device Settings.');
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -139,6 +146,13 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {__DEV__ && (
+        <TouchableOpacity style={styles.testBtn} onPress={handleTestNotification}>
+          <FlaskConical size={16} color="#0D6B5E" />
+          <Text style={styles.testBtnText}>Test local notification</Text>
+        </TouchableOpacity>
+      )}
 
       {alerts.length === 0 ? (
         <View style={styles.empty}>
@@ -226,6 +240,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 4,
+  },
+  testBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#0D6B5E',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  testBtnText: {
+    color: '#0D6B5E',
+    fontSize: 13,
+    fontWeight: '600',
   },
   empty: {
     alignItems: 'center',

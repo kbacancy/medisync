@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Lock, Mail, Camera } from 'lucide-react';
+import { Lock, Camera } from 'lucide-react';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -109,21 +109,37 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="relative shrink-0 rounded-full transition-colors duration-200 focus:outline-none"
       style={{
-        width: 44,
-        height: 24,
-        backgroundColor: checked ? 'var(--ms-primary)' : 'rgba(0,0,0,0.15)',
+        position: 'relative',
+        flexShrink: 0,
+        width: 51,
+        height: 31,
+        borderRadius: 9999,
+        border: 'none',
+        cursor: 'pointer',
+        padding: 0,
+        outline: 'none',
+        transition: 'background-color 0.25s ease',
+        backgroundColor: checked ? 'var(--ms-primary)' : '#e5e5ea',
+        WebkitTapHighlightColor: 'transparent',
       }}
-      aria-pressed={checked}
     >
       <span
-        className="absolute top-0.5 rounded-full bg-white shadow-sm transition-transform duration-200"
         style={{
-          width: 20,
-          height: 20,
-          transform: checked ? 'translateX(22px)' : 'translateX(2px)',
+          position: 'absolute',
+          top: 2,
+          left: 2,
+          width: 27,
+          height: 27,
+          borderRadius: '50%',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.28)',
+          transition: 'transform 0.25s ease',
+          transform: checked ? 'translateX(20px)' : 'translateX(0)',
+          display: 'block',
         }}
       />
     </button>
@@ -194,16 +210,54 @@ function ProfileTab({
   userId,
   defaultValues,
   email,
+  initialAvatarUrl,
 }: {
   userId: string;
   defaultValues: ProfileForm;
   email: string;
+  initialAvatarUrl: string;
 }) {
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ProfileForm>({ resolver: zodResolver(profileSchema), defaultValues });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
+  const [uploading, setUploading] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error('File must be under 2 MB.'); return; }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const ext = file.name.split('.').pop();
+      const path = `${userId}/avatar.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', userId);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      toast.success('Profile photo updated.');
+    } catch {
+      toast.error('Failed to upload photo.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const onSubmit = async (values: ProfileForm) => {
     const supabase = createClient();
@@ -219,22 +273,41 @@ function ProfileTab({
       <Card title="Personal Information">
         {/* Avatar upload */}
         <div className="flex items-center gap-4">
-          <div
-            className="relative size-[72px] rounded-full flex items-center justify-center shrink-0 cursor-pointer group"
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="relative size-[72px] rounded-full flex items-center justify-center shrink-0 cursor-pointer group overflow-hidden"
             style={{
               border: '2px dashed var(--ms-border)',
               backgroundColor: 'var(--ms-surface-raised)',
               color: 'var(--ms-text-tertiary)',
             }}
           >
-            <Camera className="size-6" />
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="Avatar" className="size-full object-cover rounded-full" />
+            ) : (
+              <Camera className="size-6" />
+            )}
             <div
               className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-              style={{ backgroundColor: 'rgba(0,0,0,0.12)' }}
+              style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
             >
-              <Camera className="size-5 text-white" />
+              {uploading ? (
+                <div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera className="size-5 text-white" />
+              )}
             </div>
-          </div>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
           <div>
             <p className="text-sm font-medium" style={{ color: 'var(--ms-text-primary)' }}>
               Profile photo
@@ -337,19 +410,47 @@ const notifGroups: {
   },
 ];
 
-function NotificationsTab() {
-  const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>({
-    email_alerts: true,
-    push_alerts: true,
-    ddi_warnings: true,
-    critical_alerts: true,
-    appointment_reminders: true,
-    schedule_changes: false,
-    system_updates: true,
-    maintenance: false,
-  });
+const defaultPrefs: Record<PrefKey, boolean> = {
+  email_alerts: true,
+  push_alerts: true,
+  ddi_warnings: true,
+  critical_alerts: true,
+  appointment_reminders: true,
+  schedule_changes: false,
+  system_updates: true,
+  maintenance: false,
+};
+
+function NotificationsTab({ userId }: { userId: string }) {
+  const [prefs, setPrefs] = useState<Record<PrefKey, boolean>>(defaultPrefs);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('profiles')
+        .select('notification_prefs')
+        .eq('id', userId)
+        .single();
+      if (data?.notification_prefs) {
+        setPrefs({ ...defaultPrefs, ...(data.notification_prefs as Record<PrefKey, boolean>) });
+      }
+    })();
+  }, [userId]);
 
   const toggle = (key: PrefKey) => setPrefs((p) => ({ ...p, [key]: !p[key] }));
+
+  const savePrefs = async () => {
+    setSaving(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('profiles')
+      .update({ notification_prefs: prefs })
+      .eq('id', userId);
+    setSaving(false);
+    error ? toast.error('Failed to save preferences.') : toast.success('Preferences saved.');
+  };
 
   return (
     <div className="space-y-5">
@@ -380,17 +481,41 @@ function NotificationsTab() {
       <div className="flex justify-end">
         <Button
           type="button"
-          onClick={() => toast.success('Preferences saved')}
+          disabled={saving}
+          onClick={savePrefs}
           className="h-9 text-sm font-medium text-white px-4"
           style={{ backgroundColor: 'var(--ms-primary)', borderRadius: 8 }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#085e47'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-primary)'; }}
         >
-          Save preferences
+          {saving ? 'Saving…' : 'Save preferences'}
         </Button>
       </div>
     </div>
   );
+}
+
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+function detectDevice(): string {
+  if (typeof navigator === 'undefined') return 'Unknown device';
+  const ua = navigator.userAgent;
+  let browser = 'Browser';
+  if (ua.includes('Edg/')) browser = 'Edge';
+  else if (ua.includes('Chrome/') && !ua.includes('Chromium/')) browser = 'Chrome';
+  else if (ua.includes('Firefox/')) browser = 'Firefox';
+  else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Safari';
+  else if (ua.includes('OPR/') || ua.includes('Opera/')) browser = 'Opera';
+
+  let os = 'Unknown OS';
+  if (ua.includes('iPhone')) os = 'iPhone';
+  else if (ua.includes('iPad')) os = 'iPad';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('Mac OS X')) os = 'macOS';
+  else if (ua.includes('Windows NT')) os = 'Windows';
+  else if (ua.includes('Linux')) os = 'Linux';
+
+  return `${browser} · ${os}`;
 }
 
 // ─── Security Tab ─────────────────────────────────────────────────────────────
@@ -405,11 +530,34 @@ function SecurityTab() {
   } = useForm<PasswordForm>({ resolver: zodResolver(passwordSchema) });
 
   const newPwd = watch('new_password', '');
+  const [currentDevice, setCurrentDevice] = useState('');
+  const [lastSignIn, setLastSignIn] = useState('');
+  const [revoking, setRevoking] = useState(false);
+
+  useEffect(() => {
+    setCurrentDevice(detectDevice());
+    (async () => {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user.last_sign_in_at) {
+        const d = new Date(session.user.last_sign_in_at);
+        setLastSignIn(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }));
+      }
+    })();
+  }, []);
 
   const onSubmit = async (values: PasswordForm) => {
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password: values.new_password });
     error ? toast.error('Failed to update password.') : (toast.success('Password updated.'), reset());
+  };
+
+  const revokeOtherSessions = async () => {
+    setRevoking(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut({ scope: 'others' });
+    setRevoking(false);
+    error ? toast.error('Failed to revoke sessions.') : toast.success('All other sessions revoked.');
   };
 
   return (
@@ -463,43 +611,50 @@ function SecurityTab() {
       {/* Active sessions */}
       <Card title="Active Sessions">
         <div className="space-y-3">
-          {[
-            { device: 'Chrome · macOS', location: 'San Francisco, CA', time: 'Active now', current: true },
-            { device: 'Safari · iPhone 15', location: 'San Francisco, CA', time: '2 hours ago', current: false },
-          ].map(({ device, location, time, current }) => (
-            <div
-              key={device}
-              className="flex items-center justify-between py-3 rounded-lg px-3"
-              style={{ backgroundColor: 'var(--ms-surface-raised)' }}
-            >
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--ms-text-primary)' }}>
-                  {device}
-                  {current && (
-                    <span
-                      className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full"
-                      style={{ backgroundColor: 'var(--ms-primary-light)', color: 'var(--ms-primary)' }}
-                    >
-                      Current
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ms-text-secondary)' }}>
-                  {location} · {time}
-                </p>
-              </div>
-              {!current && (
-                <button
-                  type="button"
-                  className="text-xs font-medium transition-colors duration-150"
-                  style={{ color: 'var(--ms-critical)' }}
-                  onClick={() => toast.success('Session revoked')}
+          {/* Current session — detected dynamically */}
+          <div
+            className="flex items-center justify-between py-3 rounded-lg px-3"
+            style={{ backgroundColor: 'var(--ms-surface-raised)' }}
+          >
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--ms-text-primary)' }}>
+                {currentDevice || 'Current browser'}
+                <span
+                  className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'var(--ms-primary-light)', color: 'var(--ms-primary)' }}
                 >
-                  Revoke
-                </button>
-              )}
+                  Current
+                </span>
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ms-text-secondary)' }}>
+                {lastSignIn ? `Signed in ${lastSignIn}` : 'Active now'}
+              </p>
             </div>
-          ))}
+          </div>
+
+          {/* Revoke all other sessions */}
+          <div
+            className="flex items-center justify-between py-3 rounded-lg px-3"
+            style={{ backgroundColor: 'var(--ms-surface-raised)' }}
+          >
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--ms-text-primary)' }}>
+                Other devices
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ms-text-secondary)' }}>
+                Sign out of all sessions except this one.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={revoking}
+              className="text-xs font-medium transition-colors duration-150 disabled:opacity-50"
+              style={{ color: 'var(--ms-critical)' }}
+              onClick={revokeOtherSessions}
+            >
+              {revoking ? 'Revoking…' : 'Revoke all'}
+            </button>
+          </div>
         </div>
       </Card>
     </form>
@@ -513,6 +668,7 @@ export default function SettingsPage() {
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [defaultValues, setDefaultValues] = useState<ProfileForm>({ full_name: '', phone: '' });
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -524,10 +680,13 @@ export default function SettingsPage() {
       setEmail(user.email ?? '');
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, phone')
+        .select('full_name, phone, avatar_url')
         .eq('id', user.id)
         .single();
-      if (profile) setDefaultValues({ full_name: profile.full_name ?? '', phone: profile.phone ?? '' });
+      if (profile) {
+        setDefaultValues({ full_name: profile.full_name ?? '', phone: profile.phone ?? '' });
+        setAvatarUrl(profile.avatar_url ?? '');
+      }
       setLoading(false);
     })();
   }, []);
@@ -560,9 +719,9 @@ export default function SettingsPage() {
 
       <div className="pt-2">
         {tab === 'profile' && (
-          <ProfileTab userId={userId} defaultValues={defaultValues} email={email} />
+          <ProfileTab userId={userId} defaultValues={defaultValues} email={email} initialAvatarUrl={avatarUrl} />
         )}
-        {tab === 'notifications' && <NotificationsTab />}
+        {tab === 'notifications' && <NotificationsTab userId={userId} />}
         {tab === 'security' && <SecurityTab />}
       </div>
     </div>

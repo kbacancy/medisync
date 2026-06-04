@@ -19,6 +19,32 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: 'sourceFile',
     };
   }
+
+  // Force @supabase/supabase-js to use its CJS build instead of ESM.
+  // The ESM build (index.mjs) contains: import(OTEL_PKG) — a dynamic import
+  // with a variable specifier that Hermes cannot compile. The CJS build uses
+  // require() which Hermes handles fine.
+  if (moduleName === '@supabase/supabase-js') {
+    return {
+      filePath: path.resolve(
+        __dirname,
+        'node_modules/@supabase/supabase-js/dist/index.cjs'
+      ),
+      type: 'sourceFile',
+    };
+  }
+
+  // Stub out optional OpenTelemetry packages used by @supabase/supabase-js.
+  if (
+    moduleName === '@opentelemetry/api' ||
+    moduleName.startsWith('@opentelemetry/')
+  ) {
+    return {
+      filePath: path.resolve(__dirname, 'otel-stub.js'),
+      type: 'sourceFile',
+    };
+  }
+
   return originalResolveRequest
     ? originalResolveRequest(context, moduleName, platform)
     : context.resolveRequest(context, moduleName, platform);

@@ -1,6 +1,4 @@
-import { Zap, TrendingUp, TrendingDown, FileText, FlaskConical } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { Zap, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Medication {
@@ -17,18 +15,18 @@ interface Lab {
 
 interface PatientEHRPanelProps {
   name: string
-  age: number
+  age: number | null
   gender: string
   bloodType: string
   bloodPressure: string
-  heartRate: number
+  heartRate: number | null
   allergies: string[]
   diagnoses: string[]
   labs: Lab[]
   medications: Medication[]
   careAlert?: string
-  headacheLogTrend?: { direction: 'up' | 'down'; percentage: number }
-  sleepQuality?: 'GOOD' | 'FAIR' | 'POOR'
+  headacheLogTrend?: { direction: 'up' | 'down'; percentage: number } | null
+  sleepQuality?: 'GOOD' | 'FAIR' | 'POOR' | null
 }
 
 function getInitials(name: string): string {
@@ -51,15 +49,15 @@ export function PatientEHRPanel({
   labs,
   medications,
   careAlert,
-  headacheLogTrend = { direction: 'up', percentage: 24 },
-  sleepQuality = 'FAIR',
+  headacheLogTrend,
+  sleepQuality,
 }: PatientEHRPanelProps) {
   const sleepColor =
     sleepQuality === 'GOOD'
       ? 'text-emerald-600 bg-emerald-50'
-      : sleepQuality === 'FAIR'
-        ? 'text-amber-600 bg-amber-50'
-        : 'text-red-600 bg-red-50'
+      : sleepQuality === 'POOR'
+        ? 'text-red-600 bg-red-50'
+        : 'text-amber-600 bg-amber-50'
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -76,7 +74,7 @@ export function PatientEHRPanel({
           <div className="text-center">
             <p className="font-bold text-gray-900">{name}</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              {age} y/o · {gender} · Blood Type: {bloodType}
+              {age != null ? `${age} y/o` : '— y/o'} · {gender} · Blood Type: {bloodType}
             </p>
           </div>
         </div>
@@ -90,49 +88,55 @@ export function PatientEHRPanel({
           </div>
           <div className="bg-gray-50 rounded-xl p-3 text-center">
             <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Heart Rate</p>
-            <p className="text-lg font-bold text-gray-900 mt-1">{heartRate}</p>
+            <p className="text-lg font-bold text-gray-900 mt-1">{heartRate ?? '—'}</p>
             <p className="text-[10px] text-gray-400">bpm</p>
           </div>
         </div>
 
-        {/* Recent History */}
-        <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
-            Recent History
-          </p>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-xs font-medium text-gray-900">Headache Log (7d)</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Frequency trend</p>
-              </div>
-              <div className="flex items-center gap-1">
-                {headacheLogTrend.direction === 'up' ? (
-                  <TrendingUp className="size-3.5 text-amber-500" />
-                ) : (
-                  <TrendingDown className="size-3.5 text-emerald-500" />
-                )}
-                <span
-                  className={cn(
-                    'text-xs font-semibold',
-                    headacheLogTrend.direction === 'up' ? 'text-amber-600' : 'text-emerald-600'
-                  )}
-                >
-                  +{headacheLogTrend.percentage}%
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-xs font-medium text-gray-900">Sleep Quality</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Past 7 nights</p>
-              </div>
-              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded', sleepColor)}>
-                {sleepQuality}
-              </span>
+        {/* Recent History — only rendered when real data exists */}
+        {(headacheLogTrend != null || sleepQuality != null) && (
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+              Recent History
+            </p>
+            <div className="space-y-2">
+              {headacheLogTrend != null && (
+                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-xs font-medium text-gray-900">Headache Log (7d)</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Frequency trend</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {headacheLogTrend.direction === 'up' ? (
+                      <TrendingUp className="size-3.5 text-amber-500" />
+                    ) : (
+                      <TrendingDown className="size-3.5 text-emerald-500" />
+                    )}
+                    <span
+                      className={cn(
+                        'text-xs font-semibold',
+                        headacheLogTrend.direction === 'up' ? 'text-amber-600' : 'text-emerald-600'
+                      )}
+                    >
+                      {headacheLogTrend.direction === 'up' ? '+' : '-'}{headacheLogTrend.percentage}%
+                    </span>
+                  </div>
+                </div>
+              )}
+              {sleepQuality != null && (
+                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-xs font-medium text-gray-900">Sleep Quality</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Past 7 nights</p>
+                  </div>
+                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded', sleepColor)}>
+                    {sleepQuality}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Current RX */}
         {medications.length > 0 && (
@@ -207,27 +211,6 @@ export function PatientEHRPanel({
         )}
       </div>
 
-      {/* Action buttons */}
-      <div className="px-4 py-3 border-t border-gray-100 grid grid-cols-2 gap-2 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs gap-1.5"
-          onClick={() => toast.info('Refill RX — coming in Phase 5')}
-        >
-          <FileText className="size-3.5" />
-          Refill RX
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs gap-1.5"
-          onClick={() => toast.info('Order Labs — coming in Phase 5')}
-        >
-          <FlaskConical className="size-3.5" />
-          Order Labs
-        </Button>
-      </div>
     </div>
   )
 }

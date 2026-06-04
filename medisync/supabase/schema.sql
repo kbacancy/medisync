@@ -50,7 +50,17 @@ create table if not exists profiles (
   full_name   text not null default '',
   role        user_role not null default 'patient',
   phone       text,
-  avatar_url  text,
+  avatar_url         text,
+  notification_prefs jsonb not null default '{
+    "email_alerts": true,
+    "push_alerts": true,
+    "ddi_warnings": true,
+    "critical_alerts": true,
+    "appointment_reminders": true,
+    "schedule_changes": false,
+    "system_updates": true,
+    "maintenance": false
+  }'::jsonb,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -195,6 +205,26 @@ create table if not exists push_subscriptions (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- TABLE: symptom_logs
+-- Patient-reported entries. type ∈ {'headache','sleep'}.
+-- headache value = severity 1–10; sleep value = 1 (POOR) | 2 (FAIR) | 3 (GOOD)
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists symptom_logs (
+  id          uuid primary key default uuid_generate_v4(),
+  patient_id  uuid not null references patients(id) on delete cascade,
+  logged_at   timestamptz not null default now(),
+  type        text not null check (type in ('headache', 'sleep')),
+  value       integer not null,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_symptom_logs_patient_id  on symptom_logs(patient_id);
+create index if not exists idx_symptom_logs_type_logged on symptom_logs(type, logged_at);
+
+alter table symptom_logs enable row level security;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- TABLE: drug_interactions  [Phase 5]
 -- Reference table of known DDI pairs. Seeded below.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -253,6 +283,14 @@ alter table drug_interactions     enable row level security;
 alter table push_subscriptions    enable row level security;
 alter table prescription_overrides enable row level security;
 
+-- Helper: returns the current user's role without triggering RLS on profiles.
+-- SECURITY DEFINER bypasses RLS so policies that check "is the caller a clinician?"
+-- don't recurse back into profiles policies (avoids 42P17 infinite recursion).
+create or replace function auth_user_role()
+returns text language sql security definer stable set search_path = public as $$
+  select role::text from profiles where id = auth.uid();
+$$;
+
 -- profiles: self read/write; any authenticated user can read clinician profiles;
 --           clinicians can read patient profiles (needed for name display in dashboard/schedule)
 drop policy if exists "profiles_self_read"                   on profiles;
@@ -262,14 +300,12 @@ drop policy if exists "profiles_patient_read_by_clinician"   on profiles;
 create policy "profiles_self_read"      on profiles for select using (auth.uid() = id);
 create policy "profiles_clinician_read" on profiles for select using (role = 'clinician');
 create policy "profiles_self_write"     on profiles for update using (auth.uid() = id);
+-- Uses auth_user_role() instead of a subquery on profiles to avoid infinite recursion (42P17).
 create policy "profiles_patient_read_by_clinician" on profiles
   for select
   using (
     role = 'patient'
-    and exists (
-      select 1 from profiles p
-      where p.id = auth.uid() and p.role = 'clinician'
-    )
+    and auth_user_role() = 'clinician'
   );
 
 -- profiles INSERT: permissive policy so the handle_new_user trigger can
@@ -394,6 +430,32 @@ create policy "appt_patient_read" on appointments for select
       select 1 from patients
       where patients.id = appointments.patient_id
         and patients.profile_id = auth.uid()
+    )
+  );
+
+-- symptom_logs: patients manage their own; clinicians read all
+drop policy if exists "symptom_patient_all"    on symptom_logs;
+drop policy if exists "symptom_clinician_read" on symptom_logs;
+create policy "symptom_patient_all" on symptom_logs for all
+  using (
+    exists (
+      select 1 from patients
+      where patients.id = symptom_logs.patient_id
+        and patients.profile_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from patients
+      where patients.id = symptom_logs.patient_id
+        and patients.profile_id = auth.uid()
+    )
+  );
+create policy "symptom_clinician_read" on symptom_logs for select
+  using (
+    exists (
+      select 1 from profiles
+      where profiles.id = auth.uid() and profiles.role = 'clinician'
     )
   );
 

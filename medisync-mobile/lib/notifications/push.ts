@@ -16,6 +16,7 @@ Notifications.setNotificationHandler({
 
 export async function requestPermissions(): Promise<boolean> {
   if (!Device.isDevice) {
+    console.warn('[Push] Skipping permissions — not a physical device');
     return false;
   }
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -23,6 +24,9 @@ export async function requestPermissions(): Promise<boolean> {
   if (existingStatus !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
+  }
+  if (finalStatus !== 'granted') {
+    console.warn('[Push] Notification permission denied — status:', finalStatus);
   }
   return finalStatus === 'granted';
 }
@@ -71,7 +75,7 @@ export async function registerForPushNotifications(
         platform: Platform.OS,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id,platform' }
     );
 
     if (upsertErr) {
@@ -120,6 +124,23 @@ export async function cancelDoseReminder(identifier: string): Promise<void> {
 
 export async function cancelAllReminders(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
+}
+
+export async function fireTestNotification(): Promise<void> {
+  const granted = await requestPermissions();
+  if (!granted) {
+    console.warn('[Push] Cannot fire test notification — permission not granted');
+    return;
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'MediSync Test',
+      body: 'Push notifications are working on this device!',
+      data: { type: 'test' },
+      sound: true,
+    },
+    trigger: null, // fires immediately
+  });
 }
 
 export function setupNotificationHandlers(): void {

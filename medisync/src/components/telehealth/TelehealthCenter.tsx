@@ -10,6 +10,8 @@ import { ClinicalNotes } from './ClinicalNotes'
 import { PatientEHRPanel } from './PatientEHRPanel'
 import { DDIWarningBanner } from './DDIWarningBanner'
 import { NewAppointmentModal } from './NewAppointmentModal'
+import { NewPrescriptionModal } from '@/components/adherence/NewPrescriptionModal'
+import { NewLabOrderModal } from '@/components/adherence/NewLabOrderModal'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -50,17 +52,19 @@ interface ActivePatientEHR {
   id: string
   appointmentId: string
   name: string
-  age: number
+  age: number | null
   gender: string
   bloodType: string
   bloodPressure: string
-  heartRate: number
+  heartRate: number | null
   allergies: string[]
   diagnoses: string[]
   labs: EHRLab[]
   medications: EHRMedication[]
   careAlert?: string
   conditions: string[]
+  headacheLogTrend: { direction: 'up' | 'down'; percentage: number } | null
+  sleepQuality: 'GOOD' | 'FAIR' | 'POOR' | null
 }
 
 interface ActiveCall {
@@ -151,7 +155,13 @@ function EHRSummaryTab({ patient }: { patient: ActivePatientEHR | null }) {
 
 // ─── Prescriptions tab ────────────────────────────────────────────────────────
 
-function PrescriptionsTab({ patient }: { patient: ActivePatientEHR | null }) {
+function PrescriptionsTab({
+  patient,
+  onNewPrescription,
+}: {
+  patient: ActivePatientEHR | null
+  onNewPrescription: () => void
+}) {
   if (!patient) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
@@ -167,6 +177,7 @@ function PrescriptionsTab({ patient }: { patient: ActivePatientEHR | null }) {
         <Button
           size="sm"
           className="bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white text-xs h-7 gap-1"
+          onClick={onNewPrescription}
         >
           <Plus className="size-3" />
           New Prescription
@@ -195,6 +206,41 @@ function PrescriptionsTab({ patient }: { patient: ActivePatientEHR | null }) {
           </div>
         ))
       )}
+    </div>
+  )
+}
+
+// ─── Lab Orders tab ───────────────────────────────────────────────────────────
+
+function LabOrdersTab({
+  patient,
+  onOrderLabs,
+}: {
+  patient: ActivePatientEHR | null
+  onOrderLabs: () => void
+}) {
+  if (!patient) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
+        <FlaskConical className="size-8 opacity-30" />
+        <p className="text-sm">Select a patient to order lab tests</p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-medium text-gray-900">Lab Orders</p>
+        <Button
+          size="sm"
+          className="bg-[#0D6B5E] hover:bg-[#0a5a4e] text-white text-xs h-7 gap-1"
+          onClick={onOrderLabs}
+        >
+          <Plus className="size-3" />
+          Order Tests
+        </Button>
+      </div>
+      <p className="text-sm text-gray-400 text-center py-4">No lab orders on file.</p>
     </div>
   )
 }
@@ -258,6 +304,8 @@ export function TelehealthCenter({
   const [doctorId, setDoctorId] = useState('')
   const [doctorName, setDoctorName] = useState('')
   const [newApptOpen, setNewApptOpen] = useState(false)
+  const [newRxOpen, setNewRxOpen] = useState(false)
+  const [newLabOpen, setNewLabOpen] = useState(false)
   const [activePatient, setActivePatient] = useState<ActivePatientEHR | null>(null)
   const [ehrLoading, setEhrLoading] = useState(false)
 
@@ -291,6 +339,7 @@ export function TelehealthCenter({
     }
     setEhrLoading(true)
     const supabase = createClient()
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
     Promise.all([
       supabase
         .from('patients')
@@ -303,8 +352,18 @@ export function TelehealthCenter({
         .eq('patient_id', activeId)
         .eq('status', 'active')
         .limit(10),
+      supabase
+        .from('symptom_logs')
+        .select('type, value, logged_at')
+        .eq('patient_id', activeId)
+        .gte('logged_at', fourteenDaysAgo)
+        .order('logged_at', { ascending: false })
+        .limit(50),
     ])
-      .then(([{ data: pt }, { data: rxRows }]) => {
+      .then(([{ data: pt, error: ptErr }, { data: rxRows, error: rxErr }, { data: symRows }]) => {
+        if (ptErr) console.error('[EHR] patients query failed — code:', ptErr.code, '| message:', ptErr.message, '| details:', ptErr.details, '| hint:', ptErr.hint)
+        if (rxErr) console.error('[EHR] prescriptions query failed — code:', rxErr.code, '| message:', rxErr.message)
+        console.log('[EHR] activeId:', activeId, '| pt:', pt, '| ptErr:', ptErr)
         if (!pt) { setActivePatient(null); return }
         type RawPt = {
           id: string
@@ -316,16 +375,40 @@ export function TelehealthCenter({
           profile: { full_name: string } | { full_name: string }[] | null
         }
         type RawRx = { medication_name: string; dosage: string; frequency: string }
+        type RawSym = { type: string; value: number; logged_at: string }
         const rawPt = pt as RawPt
         const profileObj = rawPt.profile
           ? (Array.isArray(rawPt.profile) ? rawPt.profile[0] : rawPt.profile)
           : null
         const name = profileObj?.full_name ?? 'Unknown'
         const dob = rawPt.date_of_birth ? new Date(rawPt.date_of_birth) : null
-        const age = dob
+        const rawAge = dob
           ? Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25))
-          : 0
+          : null
+        const age = rawAge != null && rawAge >= 0 && rawAge <= 120 ? rawAge : null
         const apptId = patientsRef.current.find((p) => p.id === activeId)?.appointmentId ?? ''
+
+        // Compute headache trend: compare count in last 7 days vs prior 7 days
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+        const symptoms = (symRows as RawSym[] ?? [])
+        const headaches = symptoms.filter((r) => r.type === 'headache')
+        const recent7 = headaches.filter((r) => new Date(r.logged_at).getTime() >= sevenDaysAgo).length
+        const prev7 = headaches.filter((r) => new Date(r.logged_at).getTime() < sevenDaysAgo).length
+        const headacheLogTrend = (recent7 > 0 || prev7 > 0)
+          ? {
+              direction: (recent7 >= prev7 ? 'up' : 'down') as 'up' | 'down',
+              percentage: prev7 === 0 ? 100 : Math.round(Math.abs(recent7 - prev7) / prev7 * 100),
+            }
+          : null
+
+        // Compute sleep quality: average of last 7 sleep entries (1=POOR, 2=FAIR, 3=GOOD)
+        const sleepEntries = symptoms.filter((r) => r.type === 'sleep').slice(0, 7)
+        let sleepQuality: 'GOOD' | 'FAIR' | 'POOR' | null = null
+        if (sleepEntries.length > 0) {
+          const avg = sleepEntries.reduce((s, r) => s + r.value, 0) / sleepEntries.length
+          sleepQuality = avg >= 2.5 ? 'GOOD' : avg >= 1.5 ? 'FAIR' : 'POOR'
+        }
+
         setActivePatient({
           id: activeId,
           appointmentId: apptId,
@@ -334,7 +417,7 @@ export function TelehealthCenter({
           gender: rawPt.gender ?? '—',
           bloodType: rawPt.blood_type ?? '—',
           bloodPressure: rawPt.blood_pressure ?? '—',
-          heartRate: rawPt.heart_rate ?? 0,
+          heartRate: rawPt.heart_rate ?? null,
           allergies: [],
           diagnoses: [],
           labs: [],
@@ -344,6 +427,8 @@ export function TelehealthCenter({
             frequency: rx.frequency,
           })),
           conditions: [],
+          headacheLogTrend,
+          sleepQuality,
         })
       })
       .finally(() => setEhrLoading(false))
@@ -449,6 +534,51 @@ export function TelehealthCenter({
         }}
       />
 
+      {activePatient && (
+        <NewLabOrderModal
+          open={newLabOpen}
+          onClose={() => setNewLabOpen(false)}
+          patientId={activePatient.id}
+          clinicianId={doctorId}
+          onSuccess={() => setNewLabOpen(false)}
+        />
+      )}
+
+      {activePatient && (
+        <NewPrescriptionModal
+          open={newRxOpen}
+          onClose={() => setNewRxOpen(false)}
+          patientId={activePatient.id}
+          doctorId={doctorId}
+          onSuccess={() => {
+            setNewRxOpen(false)
+            // Re-fetch medications for the active patient
+            const supabase = createClient()
+            supabase
+              .from('prescriptions')
+              .select('medication_name, dosage, frequency')
+              .eq('patient_id', activePatient.id)
+              .eq('status', 'active')
+              .limit(10)
+              .then(({ data }) => {
+                if (!data) return
+                setActivePatient((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        medications: data.map((rx) => ({
+                          name: rx.medication_name,
+                          dose: rx.dosage,
+                          frequency: rx.frequency,
+                        })),
+                      }
+                    : prev
+                )
+              })
+          }}
+        />
+      )}
+
       <div className="flex h-full bg-[#F4F6F8] overflow-hidden">
         {/* ── Left Panel — Waiting Room ── */}
         <div className="w-[280px] bg-white border-r border-gray-100 flex flex-col shrink-0">
@@ -544,8 +674,12 @@ export function TelehealthCenter({
                     EHR Summary
                   </TabsTrigger>
                   <TabsTrigger value="rx" className="text-xs gap-1.5">
-                    <FlaskConical className="size-3.5" />
+                    <Pill className="size-3.5" />
                     Prescriptions
+                  </TabsTrigger>
+                  <TabsTrigger value="labs" className="text-xs gap-1.5">
+                    <FlaskConical className="size-3.5" />
+                    Lab Orders
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -571,7 +705,17 @@ export function TelehealthCenter({
                 </TabsContent>
 
                 <TabsContent value="rx" className="p-4 m-0">
-                  <PrescriptionsTab patient={activePatient} />
+                  <PrescriptionsTab
+                    patient={activePatient}
+                    onNewPrescription={() => setNewRxOpen(true)}
+                  />
+                </TabsContent>
+
+                <TabsContent value="labs" className="p-4 m-0">
+                  <LabOrdersTab
+                    patient={activePatient}
+                    onOrderLabs={() => setNewLabOpen(true)}
+                  />
                 </TabsContent>
               </div>
             </Tabs>
@@ -593,6 +737,8 @@ export function TelehealthCenter({
               labs={activePatient.labs}
               medications={activePatient.medications}
               careAlert={activePatient.careAlert}
+              headacheLogTrend={activePatient.headacheLogTrend}
+              sleepQuality={activePatient.sleepQuality}
             />
           ) : (
             <div className="flex flex-col h-full">
