@@ -44,17 +44,25 @@ export async function POST(request: Request) {
     })
     .eq('id', appointmentId)
 
-  // Notify patient that the call has ended
-  // Note: patientId here is profiles.id (push_subscriptions.user_id)
+  // patientId is patients.id — resolve to profiles.id for push_subscriptions lookup
   if (patientId) {
-    sendPushToUser(supabase, patientId, {
-      title:     'Your consultation has ended',
-      body:      'Thank you for your appointment. Have a great day!',
-      url:       '/medications',
-      tag:       `call-ended-${appointmentId}`,
-      data:      { type: 'call_ended', appointmentId },
-      channelId: 'default',
-    }).catch(console.error)
+    const { data: patientRecord } = await supabase
+      .from('patients')
+      .select('profile_id')
+      .eq('id', patientId)
+      .maybeSingle()
+
+    const profileId = patientRecord?.profile_id
+    if (profileId) {
+      sendPushToUser(supabase, profileId, {
+        title:     'Your consultation has ended',
+        body:      'Thank you for your appointment. Have a great day!',
+        url:       '/medications',
+        tag:       `call-ended-${appointmentId}`,
+        data:      { type: 'call_ended', appointmentId },
+        channelId: 'default',
+      }).catch(console.error)
+    }
   }
 
   return NextResponse.json({ success: true })

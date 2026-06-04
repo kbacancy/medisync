@@ -15,6 +15,19 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
+ * Decode a base64url-encoded VAPID public key to a Uint8Array.
+ * Chrome accepts a plain string for applicationServerKey, but iOS Safari
+ * strictly requires a Uint8Array — passing the raw string silently prevents
+ * the push subscription from being created on iOS.
+ */
+function vapidKeyToUint8Array(base64urlKey: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64urlKey.length % 4)) % 4)
+  const base64 = (base64urlKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0))
+}
+
+/**
  * Subscribe the current browser to Web Push and persist the subscription to
  * push_subscriptions with platform = 'web'.
  *
@@ -36,7 +49,8 @@ export async function subscribeToPush(userId: string): Promise<void> {
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: vapidPublicKey,
+      // Must be Uint8Array — iOS Safari rejects a plain base64url string
+      applicationServerKey: vapidKeyToUint8Array(vapidPublicKey),
     })
   }
 

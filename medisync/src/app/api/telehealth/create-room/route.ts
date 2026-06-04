@@ -59,7 +59,9 @@ export async function POST(request: Request) {
     .maybeSingle()
 
   const profileId = patientRecord?.profile_id
-  if (profileId) {
+  if (!profileId) {
+    console.warn(`[create-room] No profile_id found for patient ${patientId} — push notification skipped`)
+  } else {
     const callUrl =
       `/call?appointmentId=${encodeURIComponent(appointmentId)}` +
       `&roomUrl=${encodeURIComponent(roomUrl)}` +
@@ -73,6 +75,9 @@ export async function POST(request: Request) {
       data: { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
       priority: 'high',
       channelId: 'telehealth-calls',
+      // Drop after 60 s — a stale "join call" notification is confusing
+      ttl: 60,
+      urgency: 'high',
     })
   }
 

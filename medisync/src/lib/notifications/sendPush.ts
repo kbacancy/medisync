@@ -26,6 +26,17 @@ export interface PushPayload {
   sound?: 'default' | null
   priority?: 'default' | 'normal' | 'high'
   channelId?: string
+  /**
+   * Seconds until this notification expires and should no longer be delivered.
+   * Sent as the Web Push `TTL` header and as `ttl` to the Expo Push API.
+   * Use a short value (e.g. 60) for time-sensitive alerts like incoming calls.
+   */
+  ttl?: number
+  /**
+   * Web Push urgency hint — tells the push service whether to wake the device
+   * immediately. Use 'high' for call notifications.
+   */
+  urgency?: 'very-low' | 'low' | 'normal' | 'high'
 }
 
 type ExpoTicket =
@@ -89,13 +100,14 @@ async function deliverExpo(
   if (subs.length === 0) return
 
   const messages = subs.map((s) => ({
-    to:        s.token,
-    title:     payload.title,
-    body:      payload.body,
-    data:      payload.data ?? {},
-    sound:     payload.sound    ?? 'default',
-    priority:  payload.priority ?? 'default',
-    channelId: payload.channelId ?? 'default',
+    to:               s.token,
+    title:            payload.title,
+    body:             payload.body,
+    data:             payload.data ?? {},
+    sound:            payload.sound    ?? 'default',
+    priority:         payload.priority ?? 'default',
+    channelId:        payload.channelId ?? 'default',
+    ...(payload.ttl !== undefined && { ttl: payload.ttl }),
   }))
 
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -114,13 +126,20 @@ async function deliverExpo(
   }
 
   const { data: tickets } = (await res.json()) as { data: ExpoTicket[] }
-  const staleTokens = (tickets ?? [])
-    .map((t, i) =>
-      t.status === 'error' && t.details?.error === 'DeviceNotRegistered'
-        ? subs[i]?.token
-        : null
-    )
-    .filter((t): t is string => t !== null)
+  const staleTokens: string[] = []
+
+  ;(tickets ?? []).forEach((t, i) => {
+    if (t.status === 'error') {
+      const errCode = t.details?.error ?? 'unknown'
+      if (errCode === 'DeviceNotRegistered') {
+        const tok = subs[i]?.token
+        if (tok) staleTokens.push(tok)
+      } else {
+        // Surface APNs/FCM delivery failures (e.g. InvalidCredentials, MessageRateExceeded)
+        console.error(`[push] Expo delivery error for token ${subs[i]?.token}: ${errCode} — ${t.message}`)
+      }
+    }
+  })
 
   if (staleTokens.length > 0) {
     await supabase
@@ -161,7 +180,11 @@ async function deliverWebPush(
     try {
       await webpush.sendNotification(
         { endpoint: parsed.endpoint, keys: parsed.keys },
-        webPayload
+        webPayload,
+        {
+          ...(payload.ttl     !== undefined && { TTL: payload.ttl }),
+          ...(payload.urgency !== undefined && { urgency: payload.urgency }),
+        }
       )
     } catch (err: unknown) {
       const status = (err as { statusCode?: number }).statusCode
