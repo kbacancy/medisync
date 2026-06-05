@@ -108,13 +108,16 @@ self.addEventListener('fetch', (event) => {
 // ─── Push Notifications ─────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
-
-  let payload
-  try {
-    payload = event.data.json()
-  } catch {
-    payload = { title: 'MediSync', body: event.data.text() }
+  // Apple requires every push event to result in a visible notification.
+  // Returning without event.waitUntil causes iOS to throttle future deliveries.
+  let payload = { title: 'MediSync', body: '', tag: '', url: '/' }
+  if (event.data) {
+    try {
+      const parsed = event.data.json()
+      payload = { title: 'MediSync', body: '', tag: '', url: '/', ...parsed }
+    } catch {
+      payload.body = event.data.text()
+    }
   }
 
   const title = payload.title || 'MediSync'
@@ -124,7 +127,6 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192.png',
     tag: payload.tag || 'medisync-default',
     data: { url: payload.url || '/' },
-    // Keeps the notification grouped on Android
     renotify: !!payload.tag,
   }
 

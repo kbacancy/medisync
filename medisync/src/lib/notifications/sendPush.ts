@@ -191,7 +191,11 @@ async function deliverWebPush(
       )
     } catch (err: unknown) {
       const status = (err as { statusCode?: number }).statusCode
-      if (status === 404 || status === 410) staleTokens.push(sub.token)
+      if (status === 404 || status === 410) {
+        staleTokens.push(sub.token)
+      } else {
+        console.error(`[push] Web Push delivery failed (status ${status}):`, err)
+      }
     }
   }
 

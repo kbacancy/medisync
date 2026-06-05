@@ -62,17 +62,40 @@ export async function POST(request: Request) {
     data: { prescriptionId },
   })
 
+  // Resolve the patient's profile_id so we only push to the right user.
+  const { data: rxRow } = await supabase
+    .from('prescriptions')
+    .select('patient_id')
+    .eq('id', prescriptionId)
+    .maybeSingle()
+
+  const patientId = rxRow?.patient_id
+  if (!patientId) {
+    return NextResponse.json({ error: 'Prescription not found' }, { status: 404 })
+  }
+
+  const { data: patientRow } = await supabase
+    .from('patients')
+    .select('profile_id')
+    .eq('id', patientId)
+    .maybeSingle()
+
+  const profileId = patientRow?.profile_id
+  if (!profileId) {
+    return NextResponse.json({ error: 'Patient profile not found' }, { status: 404 })
+  }
+
   // In production this should be a Supabase Edge Function cron or pg_cron job.
   // For dev: fire-and-forget setTimeout (process-lifetime only).
   setTimeout(async () => {
     if (!configureWebPush()) return
 
-    // Fetch only Web Push subscriptions — `token` holds serialised JSON:
-    // { endpoint, keys: { p256dh, auth } }
+    // Fetch only this patient's Web Push subscription.
     const { data: rows } = await supabase
       .from('push_subscriptions')
       .select('token')
       .eq('platform', 'web')
+      .eq('user_id', profileId)
 
     const staleTokens: string[] = []
 
