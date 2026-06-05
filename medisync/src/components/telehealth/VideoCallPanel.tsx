@@ -39,6 +39,7 @@ export function VideoCallPanel({
     `&config.startWithAudioMuted=false` +
     `&config.disableDeepLinking=true` +
     `&config.prejoinPageEnabled=false` +
+    `&config.prejoinConfig.enabled=false` +
     `&userInfo.displayName=${encodeURIComponent(doctorName)}`
 
   const handleEndCall = useCallback(async () => {
