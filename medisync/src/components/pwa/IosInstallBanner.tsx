@@ -99,6 +99,10 @@ export function IosInstallBanner() {
               Install the app to receive <strong className="text-gray-700">incoming call alerts</strong> and{' '}
               <strong className="text-gray-700">dose reminders</strong> even when your browser is closed.
             </p>
+            {/* iOS Safari has no one-tap install button — make the manual requirement explicit */}
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 max-w-[280px]">
+              Safari on iPhone has no &quot;Install&quot; button — follow the 3 steps below.
+            </p>
           </div>
 
           {/* Steps */}

@@ -70,20 +70,31 @@ export function PushNotificationSetup({ userId, pendingDoses }: PushNotification
 
   if (dismissed) return null
 
-  // Standard browser: permission was denied
+  // iOS non-standalone: Web Push is unavailable here regardless of permission.
+  // IosInstallBanner in the layout handles the guidance for this state.
+  if (isIosSafari() && !isInStandaloneMode()) return null
+
   if (denied) {
+    // iOS standalone PWA: user denied the permission prompt inside the installed app.
+    // There is no deep-link to iOS Settings from a web app — give text instructions.
+    const iosStandalone = isIosSafari() && isInStandaloneMode()
+
     return (
       <div className="mx-4 mt-3 flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm">
         <p className="flex-1">
-          Enable notifications to get dose reminders.{' '}
-          <a
-            href="https://support.google.com/chrome/answer/3220216"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline font-medium"
-          >
-            Open browser settings
-          </a>
+          {iosStandalone ? (
+            <>
+              Notifications are blocked. Open{' '}
+              <strong>iPhone Settings → Notifications → MediSync</strong> and
+              enable Allow Notifications.
+            </>
+          ) : (
+            <>
+              Notifications are blocked. Tap the{' '}
+              <strong>lock icon</strong> in your browser's address bar and set
+              Notifications to <strong>Allow</strong>, then reload the page.
+            </>
+          )}
         </p>
         <button
           onClick={() => setDismissed(true)}
