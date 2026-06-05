@@ -25,9 +25,21 @@ export function PushSubscriber({ userId }: { userId: string }) {
         ('standalone' in navigator &&
           (navigator as { standalone?: boolean }).standalone === true)
 
-      // iOS requires standalone mode for Web Push — skip silently on plain Safari
+      // iOS non-standalone: Web Push unavailable, skip silently.
       if (isIos && !isStandalone) return
 
+      // iOS standalone: NEVER call requestPermission() from a setTimeout —
+      // iOS requires a direct user gesture. PushNotificationSetup on the
+      // medications page handles the tap-to-enable flow for iOS.
+      // Here we only subscribe if permission is already granted.
+      if (isIos && isStandalone) {
+        if (Notification.permission === 'granted') {
+          await subscribeToPush(userId)
+        }
+        return
+      }
+
+      // Non-iOS: auto-request is fine (Chrome, Firefox, etc. allow it)
       if (Notification.permission === 'denied') return
 
       const granted = await requestNotificationPermission()
