@@ -133,18 +133,27 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = event.notification.data?.url || '/'
+  const relativePath = event.notification.data?.url || '/'
+  // Always use an absolute URL — clients.openWindow requires it on some browsers,
+  // and c.url (which is always absolute) must be compared to an absolute URL.
+  const absoluteUrl = self.location.origin + relativePath
 
   event.waitUntil(
     clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Re-focus an existing tab pointing at the same URL
+        // Re-focus an existing tab if one is already open at that URL.
+        // Compare absolute-to-absolute so the check actually matches.
         const existing = clientList.find(
-          (c) => c.url.includes(targetUrl) && 'focus' in c
+          (c) => c.url === absoluteUrl && 'focus' in c
         )
-        if (existing) return existing.focus()
-        return clients.openWindow(targetUrl)
+        if (existing) {
+          return existing.focus()
+        }
+        // On iOS Safari (standalone PWA) matchAll returns an empty list,
+        // so we always fall through to openWindow — this navigates the
+        // existing app window rather than opening a second one.
+        return clients.openWindow(absoluteUrl)
       })
   )
 })

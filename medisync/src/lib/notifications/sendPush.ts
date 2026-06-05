@@ -73,7 +73,10 @@ export async function sendPushToUser(
     .select('token, platform')
     .eq('user_id', profileId)
 
-  if (!subs || subs.length === 0) return
+  if (!subs || subs.length === 0) {
+    console.warn(`[push] No subscriptions found for user ${profileId} — notification not delivered`)
+    return
+  }
 
   const expoSubs = subs.filter(
     (s) => s.platform === 'ios' || s.platform === 'android'

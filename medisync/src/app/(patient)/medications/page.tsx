@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { MedicationTimeline } from '@/components/medications/MedicationTimeline';
 import { PushNotificationSetup } from '@/components/patient/PushNotificationSetup';
 import { ActiveCallBanner } from '@/components/patient/ActiveCallBanner';
-import { IncomingCallListener } from '@/components/patient/IncomingCallListener';
 import type { PrescriptionWithDispense, AdherenceLog, DispenseRecord } from '@/types';
 
 const SEED_DISPENSE_RX1: DispenseRecord = {
@@ -336,9 +335,6 @@ export default async function MedicationsPage() {
           doctorName={call.doctor?.full_name ?? 'your doctor'}
         />
       )}
-      {/* Realtime banner: call starts while the patient is already on this page
-          (covers iOS Safari and any browser that skipped push registration) */}
-      <IncomingCallListener patientId={patientId} />
       <MedicationTimeline
         prescriptions={prescriptions}
         adherenceLogs={adherenceLogs}

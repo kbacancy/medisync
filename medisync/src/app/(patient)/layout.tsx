@@ -5,7 +5,10 @@ import { PatientHeader } from '@/components/patient/header';
 import { TabBar } from '@/components/patient/tab-bar';
 import { OfflineBanner } from '@/components/patient/OfflineBanner';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { IosInstallBanner } from '@/components/pwa/IosInstallBanner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { IncomingCallListener } from '@/components/patient/IncomingCallListener';
+import { PushSubscriber } from '@/components/patient/PushSubscriber';
 import type { Profile } from '@/types';
 
 export default async function PatientLayout({
@@ -28,6 +31,14 @@ export default async function PatientLayout({
     .select('*')
     .eq('id', user.id)
     .single();
+
+  const { data: patientRecord } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
+  const patientId = patientRecord?.id ?? null;
 
   // Determine role: prefer DB profile, fall back to JWT user_metadata.
   const dbRole = profileData?.role as string | undefined;
@@ -62,6 +73,11 @@ export default async function PatientLayout({
       </main>
       <TabBar />
       <Toaster richColors position="top-center" />
+      {/* Global realtime call alert — works on every patient page and covers
+          iOS Safari where push notifications require standalone PWA mode */}
+      {patientId && <IncomingCallListener patientId={patientId} />}
+      <PushSubscriber userId={user.id} />
+      <IosInstallBanner />
     </>
   );
 }
