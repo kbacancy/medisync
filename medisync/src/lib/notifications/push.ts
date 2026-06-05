@@ -20,11 +20,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
  * strictly requires a Uint8Array — passing the raw string silently prevents
  * the push subscription from being created on iOS.
  */
-function vapidKeyToUint8Array(base64urlKey: string): Uint8Array {
+function vapidKeyToUint8Array(base64urlKey: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64urlKey.length % 4)) % 4)
   const base64 = (base64urlKey + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = atob(base64)
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0))
+  const output = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) {
+    output[i] = raw.charCodeAt(i)
+  }
+  return output
 }
 
 /**
