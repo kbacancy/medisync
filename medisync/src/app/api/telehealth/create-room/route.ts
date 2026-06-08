@@ -75,8 +75,8 @@ export async function POST(request: Request) {
       data: { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
       priority: 'high',
       channelId: 'telehealth-calls',
-      // Drop after 60 s — a stale "join call" notification is confusing
-      ttl: 60,
+      // Drop after 2 min — APNs can take longer than 60 s under load
+      ttl: 120,
       urgency: 'high',
     })
   }

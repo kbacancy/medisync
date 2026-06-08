@@ -21,7 +21,7 @@ interface AppointmentRow {
   type: string
   room_url: string | null
   room_name: string | null
-  doctor_id: string | null
+  clinician_id: string | null
 }
 
 /**
@@ -39,6 +39,43 @@ export function IncomingCallListener({ patientId }: IncomingCallListenerProps) {
 
   useEffect(() => {
     const supabase = createClient()
+
+    async function resolveCall(row: AppointmentRow): Promise<ActiveCall> {
+      let doctorName = 'your doctor'
+      if (row.clinician_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', row.clinician_id)
+          .single()
+        if (profile?.full_name) doctorName = profile.full_name
+      }
+      return { id: row.id, room_url: row.room_url!, room_name: row.room_name!, doctorName }
+    }
+
+    // Check whether there is already an active call when the component mounts.
+    // The realtime subscription only receives future UPDATE events, so without
+    // this check the banner never appears if the doctor started the call before
+    // the patient opened the app.
+    async function checkActiveCall() {
+      const { data: rows } = await supabase
+        .from('appointments')
+        .select('id, status, type, room_url, room_name, clinician_id')
+        .eq('patient_id', patientId)
+        .eq('status', 'in-call')
+        .eq('type', 'telehealth')
+        .not('room_url', 'is', null)
+        .limit(1)
+
+      const row = rows?.[0] as AppointmentRow | undefined
+      if (row?.room_url && row.room_name) {
+        const call = await resolveCall(row)
+        activeCallIdRef.current = call.id
+        setActiveCall(call)
+      }
+    }
+
+    checkActiveCall()
 
     const channel = supabase
       .channel(`incoming-call-${patientId}`)
@@ -59,22 +96,8 @@ export function IncomingCallListener({ patientId }: IncomingCallListenerProps) {
             row.room_url &&
             row.room_name
           ) {
-            let doctorName = 'your doctor'
-            if (row.doctor_id) {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('id', row.doctor_id)
-                .single()
-              if (profile?.full_name) doctorName = profile.full_name
-            }
-            const call: ActiveCall = {
-              id: row.id,
-              room_url: row.room_url,
-              room_name: row.room_name,
-              doctorName,
-            }
-            activeCallIdRef.current = row.id
+            const call = await resolveCall(row)
+            activeCallIdRef.current = call.id
             setActiveCall(call)
           } else if (activeCallIdRef.current === row.id) {
             // This appointment moved out of 'in-call' — dismiss the banner

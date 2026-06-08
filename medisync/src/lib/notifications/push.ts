@@ -67,10 +67,13 @@ export async function subscribeToPush(userId: string): Promise<void> {
   const token = JSON.stringify({ endpoint, keys })
 
   const supabase = createClient()
-  await supabase.from('push_subscriptions').upsert(
+  const { error } = await supabase.from('push_subscriptions').upsert(
     { user_id: userId, token, platform: 'web' },
     { onConflict: 'user_id,platform' }
   )
+  if (error) {
+    console.error('[push] Failed to save web push subscription:', error.message)
+  }
 
   // Re-subscribe whenever the service worker activates a new version so the
   // push endpoint stays in sync with the active SW registration.
