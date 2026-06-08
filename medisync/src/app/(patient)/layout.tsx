@@ -64,10 +64,13 @@ export default async function PatientLayout({
       <PatientHeader profile={profile} />
       <OfflineBanner />
       <InstallPrompt />
-      {/* Bottom padding = tab bar (60px) + iPhone safe-area-inset-bottom */}
+      {/* Top padding = header (56px) + iOS status bar; bottom = tab bar (60px) + home indicator */}
       <main
-        className="mt-[56px] bg-[#F4F6F8] min-h-[calc(100vh-116px)] overflow-y-auto"
-        style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+        className="bg-[#F4F6F8] min-h-screen overflow-y-auto"
+        style={{
+          paddingTop: 'calc(56px + env(safe-area-inset-top))',
+          paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
+        }}
       >
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>

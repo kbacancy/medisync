@@ -51,7 +51,11 @@ export function OfflineBanner() {
       : 'Changes will sync when connected'
 
   return (
-    <div className="mx-4 mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm">
+    <div
+      className="fixed left-0 right-0 z-[45] px-4"
+      style={{ top: 'calc(56px + env(safe-area-inset-top))' }}
+    >
+    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm shadow-sm">
       <WifiOff className="size-4 shrink-0 text-amber-600" />
       <p className="flex-1">
         Offline —{' '}
@@ -64,6 +68,7 @@ export function OfflineBanner() {
       >
         <X className="size-4" />
       </button>
+    </div>
     </div>
   )
 }

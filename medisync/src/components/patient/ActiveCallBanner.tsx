@@ -28,7 +28,11 @@ export function ActiveCallBanner({
   }
 
   return (
-    <div className="mx-4 mt-4 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 shadow-lg overflow-hidden">
+    <div
+      className="fixed left-0 right-0 z-[60] px-4"
+      style={{ bottom: 'calc(68px + env(safe-area-inset-bottom))' }}
+    >
+      <div className="rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 shadow-xl overflow-hidden">
       <div className="flex items-center gap-4 px-4 py-3.5">
         {/* Pulsing icon */}
         <div className="relative shrink-0">
@@ -41,7 +45,7 @@ export function ActiveCallBanner({
         {/* Text */}
         <div className="flex-1 min-w-0">
           <p className="text-white font-semibold text-sm leading-tight">
-            Dr. {doctorName} is ready
+            Dr. {doctorName.replace(/^Dr\.?\s+/i, '')} is ready
           </p>
           <p className="text-white/75 text-xs mt-0.5">
             Your video consultation is waiting
@@ -55,6 +59,7 @@ export function ActiveCallBanner({
         >
           Join Now
         </button>
+      </div>
       </div>
     </div>
   )

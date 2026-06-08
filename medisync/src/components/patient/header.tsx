@@ -24,7 +24,11 @@ export function PatientHeader({ profile }: PatientHeaderProps) {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-100 z-40 flex items-center justify-between px-4">
+    <header
+      className="fixed top-0 left-0 right-0 bg-white border-b border-gray-100 z-40"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="h-14 flex items-center justify-between px-4">
       <span className="font-bold text-[#0D6B5E] text-lg">MediSync</span>
       <div className="flex items-center gap-2">
         <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -48,6 +52,7 @@ export function PatientHeader({ profile }: PatientHeaderProps) {
         >
           <LogOut className="size-5 text-gray-400 group-hover:text-red-500 transition-colors" />
         </button>
+      </div>
       </div>
     </header>
   );
