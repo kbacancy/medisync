@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Bell, X } from 'lucide-react'
 import {
   requestNotificationPermission,
@@ -20,6 +21,7 @@ const DISMISS_TTL_DAYS = 7
  * never visited that page never got a push subscription and missed call alerts.
  */
 export function PushSubscriber({ userId }: { userId: string }) {
+  const pathname = usePathname()
   const [showIosBanner, setShowIosBanner] = useState(false)
   const [requesting, setRequesting] = useState(false)
 
@@ -42,6 +44,11 @@ export function PushSubscriber({ userId }: { userId: string }) {
           // the stored endpoint stays in sync with the active service worker.
           await subscribeToPush(userId)
         } else if (Notification.permission === 'default') {
+          // /medications already shows the PushNotificationSetup opt-in banner
+          // which also schedules dose reminders. Skip our banner there to avoid
+          // showing two prompts simultaneously on the patient's default page.
+          if (pathname === '/medications') return
+
           // iOS requires a direct user gesture to show the system permission dialog.
           // Show the opt-in banner unless the user recently dismissed it.
           const raw = localStorage.getItem(IOS_NOTIF_DISMISSED_KEY)
@@ -67,7 +74,7 @@ export function PushSubscriber({ userId }: { userId: string }) {
     // Slight delay so it doesn't contend with page hydration
     const t = setTimeout(register, 1500)
     return () => clearTimeout(t)
-  }, [userId])
+  }, [userId, pathname])
 
   async function handleEnable() {
     setRequesting(true)

@@ -110,11 +110,11 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   // Apple requires every push event to result in a visible notification.
   // Returning without event.waitUntil causes iOS to throttle future deliveries.
-  let payload = { title: 'MediSync', body: '', tag: '', url: '/' }
+  let payload = { title: 'MediSync', body: '', tag: '', url: '/', data: null }
   if (event.data) {
     try {
       const parsed = event.data.json()
-      payload = { title: 'MediSync', body: '', tag: '', url: '/', ...parsed }
+      payload = { title: 'MediSync', body: '', tag: '', url: '/', data: null, ...parsed }
     } catch {
       payload.body = event.data.text()
     }
@@ -130,7 +130,23 @@ self.addEventListener('push', (event) => {
     renotify: !!payload.tag,
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  const tasks = [self.registration.showNotification(title, options)]
+
+  // For call notifications: also post a message to every open app window so
+  // IncomingCallListener can show the in-app banner instantly while the app is
+  // in the foreground (the OS banner alone may be missed or suppressed).
+  if (payload.data?.type === 'call_started') {
+    const notifyClients = self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        clientList.forEach((c) =>
+          c.postMessage({ type: 'CALL_STARTED', payload: payload.data })
+        )
+      })
+    tasks.push(notifyClients)
+  }
+
+  event.waitUntil(Promise.all(tasks))
 })
 
 self.addEventListener('notificationclick', (event) => {
