@@ -1,8 +1,7 @@
--- Enable Supabase Realtime on appointments so IncomingCallListener receives
--- status-change events (e.g. 'in-call') without polling.
---
--- The phase6 migration added care_alerts to supabase_realtime, which converted
--- the publication from FOR ALL TABLES to an explicit table list. appointments
--- was never added, so postgres_changes subscriptions on that table were silently
--- receiving no events.
-ALTER PUBLICATION supabase_realtime ADD TABLE appointments;
+-- appointments was already in supabase_realtime — ADD TABLE is a no-op if it
+-- fails with 42710. This migration only sets REPLICA IDENTITY FULL so that
+-- UPDATE payloads from Supabase Realtime include ALL columns, not just the
+-- primary key and changed columns. Without this, `type` and `clinician_id`
+-- (which are set at INSERT and never change) are absent from UPDATE payloads,
+-- causing IncomingCallListener to silently drop every real-time call event.
+ALTER TABLE appointments REPLICA IDENTITY FULL;

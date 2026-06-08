@@ -115,18 +115,22 @@ export function IncomingCallListener({ patientId }: IncomingCallListenerProps) {
         },
         async (payload) => {
           const row = payload.new as AppointmentRow
-          if (
-            row.status === 'in-call' &&
-            row.type === 'telehealth' &&
-            row.room_url &&
-            row.room_name
-          ) {
+
+          // IMPORTANT: with REPLICA IDENTITY DEFAULT (Supabase's default),
+          // UPDATE payloads only include changed columns. The `type` column
+          // is set at insert and never changes, so it may be absent here.
+          // Use syncCallState() to fetch the full row from the DB instead of
+          // relying on payload.new to have every column.
+          if (row.status === 'in-call' && row.room_url && row.room_name) {
             const call = await resolveCall(row)
             activeCallIdRef.current = call.id
             setActiveCall(call)
-          } else if (activeCallIdRef.current === row.id) {
+          } else if (row.status !== 'in-call' && activeCallIdRef.current === row.id) {
             activeCallIdRef.current = null
             setActiveCall(null)
+          } else {
+            // Column data may be incomplete — do a full sync to be safe
+            syncCallState()
           }
         }
       )
