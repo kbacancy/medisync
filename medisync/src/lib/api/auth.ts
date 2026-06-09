@@ -49,7 +49,7 @@ export async function requireClinician(): Promise<AuthResult> {
   const result = await requireAuth()
   if (!result.ok) return result
 
-  if (result.role !== 'clinician' && result.role !== 'coordinator') {
+  if (result.role !== 'clinician') {
     return {
       ok: false,
       response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),

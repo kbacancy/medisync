@@ -44,7 +44,7 @@ export default async function PatientLayout({
   // which can be updated by the client via supabase.auth.updateUser().
   const resolvedRole = profileData?.role as string | undefined;
 
-  if (resolvedRole === 'clinician' || resolvedRole === 'coordinator') {
+  if (resolvedRole === 'clinician') {
     redirect('/dashboard');
   }
 

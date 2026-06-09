@@ -11,14 +11,14 @@ CREATE POLICY "care_alerts_clinician_all" ON care_alerts
     EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('clinician', 'coordinator')
+        AND role = 'clinician'
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('clinician', 'coordinator')
+        AND role = 'clinician'
     )
   );
 
@@ -43,7 +43,7 @@ CREATE POLICY "fhir_audit_clinician_select" ON fhir_audit_log
     EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('clinician', 'coordinator')
+        AND role = 'clinician'
     )
   );
 
@@ -59,14 +59,14 @@ CREATE POLICY "prescription_overrides_clinician_all" ON prescription_overrides
     EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('clinician', 'coordinator')
+        AND role = 'clinician'
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
-        AND role IN ('clinician', 'coordinator')
+        AND role = 'clinician'
     )
   );
 

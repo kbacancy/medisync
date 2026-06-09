@@ -123,7 +123,7 @@ export async function POST(request: Request) {
   }
 
   // Derive sender identity from the authenticated session — never trust the client
-  const senderRole = (auth.role === 'clinician' || auth.role === 'coordinator')
+  const senderRole = (auth.role === 'clinician')
     ? 'clinician'
     : 'patient'
 
