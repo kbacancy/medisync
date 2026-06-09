@@ -343,7 +343,7 @@ export function TelehealthCenter({
     Promise.all([
       supabase
         .from('patients')
-        .select('id, date_of_birth, gender, blood_type, blood_pressure, heart_rate, profile:profiles!profile_id(full_name)')
+        .select('id, date_of_birth, gender, blood_type, blood_pressure, heart_rate, allergies, diagnoses, profile:profiles!profile_id(full_name)')
         .eq('id', activeId)
         .single(),
       supabase
@@ -359,8 +359,14 @@ export function TelehealthCenter({
         .gte('logged_at', fourteenDaysAgo)
         .order('logged_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('lab_orders')
+        .select('tests, status, ordered_at, priority')
+        .eq('patient_id', activeId)
+        .order('ordered_at', { ascending: false })
+        .limit(10),
     ])
-      .then(([{ data: pt, error: ptErr }, { data: rxRows, error: rxErr }, { data: symRows }]) => {
+      .then(([{ data: pt, error: ptErr }, { data: rxRows, error: rxErr }, { data: symRows }, { data: labRows }]) => {
         if (ptErr) console.error('[EHR] patients query failed — code:', ptErr.code)
         if (rxErr) console.error('[EHR] prescriptions query failed — code:', rxErr.code)
         if (!pt) { setActivePatient(null); return }
@@ -371,10 +377,15 @@ export function TelehealthCenter({
           blood_type: string | null
           blood_pressure: string | null
           heart_rate: number | null
+          allergies: string[] | null
+          diagnoses: string[] | null
           profile: { full_name: string } | { full_name: string }[] | null
         }
         type RawRx = { medication_name: string; dosage: string; frequency: string }
         type RawSym = { type: string; value: number; logged_at: string }
+        type RawLabTest = { id: string; name: string; category: string }
+        type RawLabOrder = { tests: RawLabTest[]; status: string; ordered_at: string; priority: string }
+
         const rawPt = pt as RawPt
         const profileObj = rawPt.profile
           ? (Array.isArray(rawPt.profile) ? rawPt.profile[0] : rawPt.profile)
@@ -386,6 +397,21 @@ export function TelehealthCenter({
           : null
         const age = rawAge != null && rawAge >= 0 && rawAge <= 120 ? rawAge : null
         const apptId = patientsRef.current.find((p) => p.id === activeId)?.appointmentId ?? ''
+
+        // Flatten lab orders: one EHRLab row per individual test in each order
+        const STATUS_LABEL: Record<string, string> = {
+          pending: 'Pending',
+          in_progress: 'In Progress',
+          completed: 'Completed',
+          cancelled: 'Cancelled',
+        }
+        const labs: EHRLab[] = (labRows as RawLabOrder[] ?? []).flatMap((order) =>
+          (order.tests ?? []).map((test) => ({
+            name: test.name,
+            value: STATUS_LABEL[order.status] ?? order.status,
+            date: new Date(order.ordered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          }))
+        )
 
         // Compute headache trend: compare count in last 7 days vs prior 7 days
         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
@@ -417,15 +443,15 @@ export function TelehealthCenter({
           bloodType: rawPt.blood_type ?? '—',
           bloodPressure: rawPt.blood_pressure ?? '—',
           heartRate: rawPt.heart_rate ?? null,
-          allergies: [],
-          diagnoses: [],
-          labs: [],
+          allergies: rawPt.allergies ?? [],
+          diagnoses: rawPt.diagnoses ?? [],
+          labs,
           medications: (rxRows as RawRx[] ?? []).map((rx) => ({
             name: rx.medication_name,
             dose: rx.dosage,
             frequency: rx.frequency,
           })),
-          conditions: [],
+          conditions: rawPt.diagnoses ?? [],
           headacheLogTrend,
           sleepQuality,
         })

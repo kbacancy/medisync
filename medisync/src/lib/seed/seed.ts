@@ -192,6 +192,8 @@ async function seedPatients(
       blood_pressure: '128/84',
       heart_rate: 72,
       risk_level: 'LOW',
+      allergies: ['Penicillin', 'Sulfa drugs'],
+      diagnoses: ['Type 2 Diabetes Mellitus (E11)', 'Hypertension (I10)'],
     },
     {
       profile_id: jamesId,
@@ -202,6 +204,8 @@ async function seedPatients(
       blood_pressure: '145/92',
       heart_rate: 88,
       risk_level: 'CRITICAL',
+      allergies: ['Aspirin', 'Latex'],
+      diagnoses: ['Coronary Artery Disease (I25)', 'Heart Failure (I50)', 'Atrial Fibrillation (I48)'],
     },
     {
       profile_id: aishaId,
@@ -212,6 +216,8 @@ async function seedPatients(
       blood_pressure: '118/76',
       heart_rate: 68,
       risk_level: 'MODERATE',
+      allergies: ['Codeine'],
+      diagnoses: ['Asthma (J45)', 'Allergic Rhinitis (J30)', 'Anxiety Disorder (F41)'],
     },
     {
       profile_id: robertId,
@@ -222,6 +228,8 @@ async function seedPatients(
       blood_pressure: '135/88',
       heart_rate: 80,
       risk_level: 'HIGH',
+      allergies: ['Ibuprofen', 'Shellfish'],
+      diagnoses: ['Chronic Kidney Disease Stage 3 (N18.3)', 'Type 2 Diabetes Mellitus (E11)', 'Hyperlipidaemia (E78)'],
     },
   ]
 
