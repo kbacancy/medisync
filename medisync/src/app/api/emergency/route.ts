@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 const EMERGENCY_TYPES = [
   'cardiac_arrest',
@@ -12,19 +14,18 @@ const EMERGENCY_TYPES = [
 ] as const
 
 const schema = z.object({
-  type: z.enum(EMERGENCY_TYPES),
-  patientId: z.string().uuid().optional(),
-  notes: z.string().max(500).optional(),
-  clinicianName: z.string().min(1),
+  type:      z.enum(EMERGENCY_TYPES),
+  patientId: z.uuid().optional(),
+  notes:     z.string().max(500).optional(),
 })
 
 const LABELS: Record<string, string> = {
-  cardiac_arrest: 'Cardiac Arrest',
+  cardiac_arrest:       'Cardiac Arrest',
   respiratory_distress: 'Respiratory Distress',
-  drug_overdose: 'Drug Overdose',
-  psychiatric_crisis: 'Psychiatric Crisis',
-  fall_injury: 'Fall / Injury',
-  other: 'Emergency',
+  drug_overdose:        'Drug Overdose',
+  psychiatric_crisis:   'Psychiatric Crisis',
+  fall_injury:          'Fall / Injury',
+  other:                'Emergency',
 }
 
 function getServiceClient() {
@@ -35,6 +36,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -47,7 +51,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request', issues: parsed.error.issues }, { status: 400 })
   }
 
-  const { type, patientId, notes, clinicianName } = parsed.data
+  // Derive clinician name from the authenticated session — never from the client
+  const authSupabase = await createServerClient()
+  const { data: profile } = await authSupabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', auth.userId)
+    .single()
+
+  const clinicianName = (profile?.full_name as string) ?? 'Unknown Clinician'
+
+  const { type, patientId, notes } = parsed.data
   const supabase = getServiceClient()
 
   const label = LABELS[type]
@@ -59,7 +73,7 @@ export async function POST(request: Request) {
     .join(' ')
 
   const alertPayload: Record<string, unknown> = {
-    type: 'emergency',
+    type:     'emergency',
     message,
     severity: 'critical',
   }
@@ -72,7 +86,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create alert' }, { status: 500 })
   }
 
   if (patientId) {

@@ -15,7 +15,7 @@ interface ClinicianShellProps {
   children: React.ReactNode;
 }
 
-const SIDEBAR_EXPANDED = 240;
+const SIDEBAR_EXPANDED = 220;
 const SIDEBAR_COLLAPSED = 64;
 
 export function ClinicianShell({ profile, children }: ClinicianShellProps) {
@@ -56,12 +56,14 @@ export function ClinicianShell({ profile, children }: ClinicianShellProps) {
       <CareAlertsRealtime doctorId={profile.id} />
 
       <main
-        className="mt-16 min-h-[calc(100vh-64px)] overflow-y-auto"
+        className="overflow-y-auto"
         style={{
           marginLeft: mainMargin,
-          // Bottom padding for mobile tab bar + safe-area; none on desktop
-          paddingBottom: isMobile ? 'calc(60px + env(safe-area-inset-bottom))' : 0,
-          backgroundColor: 'var(--ms-surface-raised)',
+          marginTop: 'calc(64px + env(safe-area-inset-top))',
+          minHeight: 'calc(100vh - 64px - env(safe-area-inset-top))',
+          // Bottom padding for mobile tab bar (49px) + home-indicator; none on desktop
+          paddingBottom: isMobile ? 'calc(49px + env(safe-area-inset-bottom))' : 0,
+          backgroundColor: 'var(--ms-page)',
           transition: 'margin-left 300ms ease',
         }}
       >

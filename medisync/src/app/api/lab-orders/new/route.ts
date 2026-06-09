@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 
 const labTestSchema = z.object({
-  id: z.string(),
-  name: z.string(),
+  id:       z.string(),
+  name:     z.string(),
   category: z.string(),
 })
 
 const schema = z.object({
-  patientId: z.string().uuid(),
-  clinicianId: z.string().uuid(),
-  priority: z.enum(['routine', 'stat', 'urgent']).default('routine'),
-  tests: z.array(labTestSchema).min(1, 'At least one test is required'),
-  notes: z.string().optional(),
+  patientId: z.uuid(),
+  priority:  z.enum(['routine', 'stat', 'urgent']).default('routine'),
+  tests:     z.array(labTestSchema).min(1, 'At least one test is required'),
+  notes:     z.string().optional(),
 })
 
 function getServiceClient() {
@@ -24,6 +24,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -39,24 +42,25 @@ export async function POST(request: Request) {
     )
   }
 
-  const { patientId, clinicianId, priority, tests, notes } = parsed.data
+  // clinicianId always comes from the authenticated session
+  const { patientId, priority, tests, notes } = parsed.data
   const supabase = getServiceClient()
 
   const { data: order, error } = await supabase
     .from('lab_orders')
     .insert({
-      patient_id: patientId,
-      clinician_id: clinicianId,
+      patient_id:   patientId,
+      clinician_id: auth.userId,
       priority,
       tests,
-      notes: notes ?? null,
-      status: 'pending',
+      notes:        notes ?? null,
+      status:       'pending',
     })
     .select()
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create lab order' }, { status: 500 })
   }
 
   return NextResponse.json({ order })

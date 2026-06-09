@@ -47,19 +47,21 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* MediSync semantic color tokens */
-  --color-ms-primary: #0A7B5C;
-  --color-ms-primary-light: #E8F5F0;
+  /* MediSync semantic color tokens — Apple principal design */
+  --color-ms-primary: #1A7A5E;
+  --color-ms-primary-hover: #155F4A;
+  --color-ms-primary-light: #E8F5F1;
+  --color-ms-page: #F5F5F7;
   --color-ms-surface: #FFFFFF;
-  --color-ms-surface-raised: #F9FAFB;
-  --color-ms-text-primary: #0F1117;
-  --color-ms-text-secondary: #6B7280;
-  --color-ms-text-tertiary: #9CA3AF;
+  --color-ms-text-primary: #0A0A0A;
+  --color-ms-text-secondary: #5C5C5C;
+  --color-ms-text-tertiary: #9A9A9A;
+  --color-ms-border: rgba(0, 0, 0, 0.08);
+  --color-ms-border-strong: rgba(0, 0, 0, 0.15);
   --color-ms-critical: #DC2626;
   --color-ms-warn: #D97706;
-  --color-ms-ok: #16A34A;
+  --color-ms-ok: #10B981;
   --color-ms-blue: #3B82F6;
-  --color-ms-purple: #7C3AED;
 }
 
 :root {
@@ -97,22 +99,26 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* MediSync primitive tokens — consumed by components */
-  --ms-primary: #0A7B5C;
-  --ms-primary-light: #E8F5F0;
+  /* MediSync design tokens — Apple principal design system */
+  --ms-primary: #1A7A5E;
+  --ms-primary-hover: #155F4A;
+  --ms-primary-light: #E8F5F1;
+  --ms-page: #F5F5F7;
   --ms-surface: #FFFFFF;
-  --ms-surface-raised: #F9FAFB;
-  --ms-surface-overlay: rgba(255, 255, 255, 0.72);
-  --ms-border: rgba(0, 0, 0, 0.06);
-  --ms-text-primary: #0F1117;
-  --ms-text-secondary: #6B7280;
-  --ms-text-tertiary: #9CA3AF;
+  --ms-surface-raised: #F5F5F7;
+  --ms-surface-overlay: rgba(255, 255, 255, 0.85);
+  --ms-border: rgba(0, 0, 0, 0.08);
+  --ms-border-strong: rgba(0, 0, 0, 0.15);
+  --ms-text-primary: #0A0A0A;
+  --ms-text-secondary: #5C5C5C;
+  --ms-text-tertiary: #9A9A9A;
   --ms-critical: #DC2626;
   --ms-warn: #D97706;
-  --ms-ok: #16A34A;
+  --ms-ok: #10B981;
   --ms-blue: #3B82F6;
-  --ms-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --ms-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Elevated surface — two-layer shadow per spec */
+  --ms-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --ms-shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04);
   --ms-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
 
   /* Font — populated by next/font/google in root layout */
@@ -168,20 +174,100 @@
   }
 }
 
-/* ── Transition helpers ─────────────────────────────────────────── */
+/* ── Bacancy brand token ───────────────────────────────────────── */
+:root {
+  --bacancy-orange: #F58220;
+}
+
+/* ── Smart Insight live dot pulse ──────────────────────────────── */
+@keyframes ms-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26,122,94,0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(26,122,94,0); }
+}
+.ms-live-dot {
+  animation: ms-live-pulse 2s ease-in-out infinite;
+}
+
+/* ── Entry animation (rows, cards) ─────────────────────────────── */
+@keyframes ms-entry {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ms-entry {
+  animation: ms-entry 200ms ease-out both;
+}
+
+/* ── Transition helper ─────────────────────────────────────────── */
 .ms-transition {
   transition-property: color, background-color, border-color, opacity, box-shadow;
   transition-timing-function: ease;
-  transition-duration: 150ms;
+  transition-duration: 120ms;
 }
 
 /* ── Skeleton shimmer ───────────────────────────────────────────── */
 @keyframes ms-shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
 }
 .ms-skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
   background-size: 800px 100%;
   animation: ms-shimmer 1.4s infinite linear;
+}
+
+/* ── Server-component-safe hover helpers ───────────────────────── */
+.ms-row-hover:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+.ms-ghost-link {
+  color: var(--ms-text-secondary);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.ms-ghost-link:hover {
+  color: var(--ms-text-primary);
+}
+
+/* ── Tinted status badges per spec ─────────────────────────────── */
+.ms-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 100px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.ms-badge-critical {
+  background-color: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.2);
+  color: #B91C1C;
+}
+.ms-badge-high {
+  background-color: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.2);
+  color: #92400E;
+}
+.ms-badge-moderate {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #1D4ED8;
+}
+.ms-badge-low {
+  background-color: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #065F46;
 }

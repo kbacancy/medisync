@@ -7,10 +7,7 @@ import { PhoneOff, Loader2 } from 'lucide-react'
 
 interface VideoCallPanelProps {
   appointmentId: string
-  patientName: string
   doctorName: string
-  doctorId: string
-  roomUrl: string
   roomName: string
   onCallEnded: () => void
 }
@@ -19,18 +16,13 @@ interface VideoCallPanelProps {
 
 export function VideoCallPanel({
   appointmentId,
-  patientName,
   doctorName,
-  // doctorId / roomUrl unused — Jitsi derives everything from roomName
   roomName,
   onCallEnded,
 }: VideoCallPanelProps) {
   const [loaded, setLoaded] = useState(false)
   const [isEndingCall, setIsEndingCall] = useState(false)
   const isEndingRef = useRef(false)
-
-  // Suppress unused-var warnings — kept in props for API compatibility
-  void patientName
 
   // Jitsi config passed as URL hash — no server API key needed
   const jitsiSrc =

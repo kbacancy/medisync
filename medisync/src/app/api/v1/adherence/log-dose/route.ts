@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/api/auth'
 import { toFHIRMedicationStatement } from '@/lib/fhir/adapter'
 import { calculatePDCByPrescription, getPDCRiskLevel } from '@/lib/pdc/calculator'
 import type { AdherenceLog, Prescription, Profile } from '@/types'
 
 const schema = z.object({
-  logId: z.string(),
-  patientId: z.string(),
-  prescriptionId: z.string(),
-  status: z.enum(['taken', 'skipped', 'snoozed', 'missed']),
-  actualTime: z.string().optional(),
-  skipReason: z.string().optional(),
-  snoozeUntil: z.string().optional(),
+  logId:          z.uuid(),
+  patientId:      z.uuid(),
+  prescriptionId: z.uuid(),
+  status:         z.enum(['taken', 'skipped', 'snoozed', 'missed']),
+  actualTime:     z.string().optional(),
+  skipReason:     z.string().optional(),
+  snoozeUntil:    z.string().optional(),
 })
 
 function getServiceClient() {
@@ -23,6 +24,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -41,6 +45,31 @@ export async function POST(request: Request) {
   const { logId, patientId, prescriptionId, status, actualTime, skipReason, snoozeUntil } =
     parsed.data
   const supabase = getServiceClient()
+
+  // Verify the log's patient_id matches the authenticated user's patient record
+  // to prevent cross-patient log manipulation
+  if (auth.role === 'patient') {
+    const { data: logRow } = await supabase
+      .from('adherence_logs')
+      .select('patient_id')
+      .eq('id', logId)
+      .maybeSingle()
+
+    if (!logRow) {
+      return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+    }
+
+    const { data: patientRecord } = await supabase
+      .from('patients')
+      .select('id')
+      .eq('id', patientId)
+      .eq('profile_id', auth.userId)
+      .maybeSingle()
+
+    if (!patientRecord || logRow.patient_id !== patientId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
 
   const updateData: Record<string, unknown> = {
     status,

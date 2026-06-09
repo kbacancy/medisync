@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 
 const schema = z.object({
-  fullName: z.string().min(1),
-  email: z.string().email(),
+  fullName:    z.string().min(1),
+  email:       z.email(),
   dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  bloodType: z.string().optional(),
-  phone: z.string().optional(),
+  gender:      z.string().optional(),
+  bloodType:   z.string().optional(),
+  phone:       z.string().optional(),
 })
 
 function getServiceClient() {
@@ -20,10 +22,13 @@ function getServiceClient() {
 }
 
 function generateTempPassword(): string {
-  return `Tmp${Math.random().toString(36).slice(2, 10)}@1`
+  return `Tmp${randomBytes(8).toString('hex')}@1`
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()

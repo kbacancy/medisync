@@ -1,17 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Search,
-  MessageCircle,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  AlertTriangle,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { RiskBadge } from '@/components/ui/risk-badge'
+import { Search, MessageCircle, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react'
 import { MessageDrawer } from '@/components/patients/MessageDrawer'
 import type { RiskLevel } from '@/types'
 
@@ -31,34 +22,53 @@ interface Props {
 type SortKey = 'full_name' | 'pdc_score' | 'risk_level'
 type SortDir = 'asc' | 'desc'
 
-const RISK_ORDER: Record<RiskLevel, number> = {
-  LOW: 0,
-  MODERATE: 1,
-  HIGH: 2,
-  CRITICAL: 3,
+const RISK_ORDER: Record<RiskLevel, number> = { LOW: 0, MODERATE: 1, HIGH: 2, CRITICAL: 3 }
+
+/* Six teal shades — hash picks one per name */
+const TEAL_SHADES = [
+  { bg: '#E8F5F1', fg: '#1A7A5E' },
+  { bg: '#D0EDE5', fg: '#155F4A' },
+  { bg: '#BAE4DA', fg: '#0E5241' },
+  { bg: '#C8EDE3', fg: '#14694F' },
+  { bg: '#D8F0E8', fg: '#1A7A5E' },
+  { bg: '#E2F4EE', fg: '#177A5C' },
+]
+
+function avatarShade(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h)
+  return TEAL_SHADES[Math.abs(h) % TEAL_SHADES.length]
 }
 
 function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((p) => p.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('')
+  return name.split(' ').map((p) => p.charAt(0).toUpperCase()).slice(0, 2).join('')
 }
 
-function PDCMiniBar({ score }: { score: number }) {
-  const color =
-    score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-400' : 'bg-red-500'
+function pdcColor(score: number): string {
+  if (score >= 80) return '#10B981'
+  if (score >= 60) return '#F59E0B'
+  return '#EF4444'
+}
+
+function PDCBar({ score, mounted }: { score: number; mounted: boolean }) {
+  const color = pdcColor(score)
   return (
     <div className="flex items-center gap-2.5">
-      <div className="w-20 h-2 rounded-full bg-gray-100 overflow-hidden shrink-0">
+      <div
+        className="rounded-full overflow-hidden shrink-0"
+        style={{ width: 200, height: 6, backgroundColor: 'rgba(0,0,0,0.08)' }}
+      >
         <div
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.min(score, 100)}%` }}
+          className="h-full rounded-full"
+          style={{
+            width: mounted ? `${Math.min(score, 100)}%` : '0%',
+            backgroundColor: color,
+            transition: 'width 600ms ease-out 100ms',
+          }}
         />
       </div>
-      <span className="text-sm font-semibold text-gray-800 tabular-nums">
-        {score}% Compliance
+      <span style={{ fontSize: 14, fontWeight: 500, color, fontVariantNumeric: 'tabular-nums' }}>
+        {score}%
       </span>
     </div>
   )
@@ -67,21 +77,53 @@ function PDCMiniBar({ score }: { score: number }) {
 function InventoryBadge({ days }: { days: number }) {
   if (days <= 0) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">
-        Refill Overdue (0 Days)
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 500,
+        padding: '3px 8px', borderRadius: 100, whiteSpace: 'nowrap',
+        backgroundColor: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#B91C1C',
+      }}>
+        Refill overdue
       </span>
     )
   }
   if (days <= 5) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-        Low Supply (≤5 Days)
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 500,
+        padding: '3px 8px', borderRadius: 100, whiteSpace: 'nowrap',
+        backgroundColor: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', color: '#92400E',
+      }}>
+        Low supply (&le;5 days)
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-      Optimal (&gt;15 Days)
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 500,
+      padding: '3px 8px', borderRadius: 100, whiteSpace: 'nowrap',
+      backgroundColor: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#065F46',
+    }}>
+      Optimal
+    </span>
+  )
+}
+
+function RiskPill({ risk }: { risk: RiskLevel }) {
+  const styles: Record<RiskLevel, { bg: string; border: string; color: string }> = {
+    CRITICAL: { bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.2)', color: '#B91C1C' },
+    HIGH:     { bg: 'rgba(217,119,6,0.08)',  border: 'rgba(217,119,6,0.2)',  color: '#92400E' },
+    MODERATE: { bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)', color: '#1D4ED8' },
+    LOW:      { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', color: '#065F46' },
+  }
+  const labels: Record<RiskLevel, string> = { CRITICAL: 'Critical', HIGH: 'High', MODERATE: 'Moderate', LOW: 'Low' }
+  const s = styles[risk]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 500,
+      padding: '3px 8px', borderRadius: 100, whiteSpace: 'nowrap',
+      backgroundColor: s.bg, border: `1px solid ${s.border}`, color: s.color,
+    }}>
+      {labels[risk]}
     </span>
   )
 }
@@ -92,6 +134,12 @@ export function PatientsTable({ patients }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('risk_level')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [messagingPatient, setMessagingPatient] = useState<{ id: string; name: string } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -104,158 +152,213 @@ export function PatientsTable({ patients }: Props) {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    const rows = q
-      ? patients.filter((p) => p.full_name.toLowerCase().includes(q))
-      : [...patients]
-
+    const rows = q ? patients.filter((p) => p.full_name.toLowerCase().includes(q)) : [...patients]
     rows.sort((a, b) => {
       let cmp = 0
       if (sortKey === 'full_name') cmp = a.full_name.localeCompare(b.full_name)
       else if (sortKey === 'pdc_score') cmp = a.pdc_score - b.pdc_score
-      else if (sortKey === 'risk_level')
-        cmp = RISK_ORDER[a.risk_level] - RISK_ORDER[b.risk_level]
+      else if (sortKey === 'risk_level') cmp = RISK_ORDER[a.risk_level] - RISK_ORDER[b.risk_level]
       return sortDir === 'asc' ? cmp : -cmp
     })
-
     return rows
   }, [patients, search, sortKey, sortDir])
 
   function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ArrowUpDown className="size-3.5 text-gray-400" />
-    return sortDir === 'asc' ? (
-      <ArrowUp className="size-3.5 text-[#0D6B5E]" />
-    ) : (
-      <ArrowDown className="size-3.5 text-[#0D6B5E]" />
-    )
+    if (sortKey !== col) return <ArrowUpDown style={{ width: 14, height: 14, color: 'var(--ms-text-tertiary)' }} />
+    return sortDir === 'asc'
+      ? <ArrowUp style={{ width: 14, height: 14, color: '#1A7A5E' }} />
+      : <ArrowDown style={{ width: 14, height: 14, color: '#1A7A5E' }} />
   }
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+      {/* Search */}
+      <div className="relative" style={{ maxWidth: 320 }}>
+        <Search
+          style={{
+            position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+            width: 16, height: 16, color: 'var(--ms-text-tertiary)',
+          }}
+        />
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search patients…"
-          className="w-full h-9 pl-9 pr-3 rounded-lg border border-input bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#0D6B5E]/30 focus:border-[#0D6B5E] transition-colors"
+          style={{
+            width: '100%',
+            height: 36,
+            paddingLeft: 34,
+            paddingRight: 12,
+            borderRadius: 8,
+            border: '1px solid rgba(0,0,0,0.12)',
+            backgroundColor: 'white',
+            fontSize: 15,
+            color: 'var(--ms-text-primary)',
+            outline: 'none',
+            transition: 'border-color 120ms ease, box-shadow 120ms ease',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = '#1A7A5E'
+            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(26,122,94,0.15)'
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'
+            e.currentTarget.style.boxShadow = ''
+          }}
         />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
+      {/* Table — no outer border, only inter-row dividers */}
+      <div className="bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04)' }}>
+        <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="text-left px-5 py-3">
+            <tr style={{ borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
+              <th className="px-5 py-3 text-left">
                 <button
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1.5"
+                  style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}
                   onClick={() => toggleSort('full_name')}
                 >
                   Patient <SortIcon col="full_name" />
                 </button>
               </th>
-              <th className="text-left px-4 py-3">
+              <th className="px-4 py-3 text-left">
                 <button
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1.5"
+                  style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}
                   onClick={() => toggleSort('pdc_score')}
                 >
                   PDC Score <SortIcon col="pdc_score" />
                 </button>
               </th>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Inventory Status
+              <th className="px-4 py-3 text-left" style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}>
+                Inventory
               </th>
-              <th className="text-left px-4 py-3">
+              <th className="px-4 py-3 text-left">
                 <button
-                  className="flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1.5"
+                  style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}
                   onClick={() => toggleSort('risk_level')}
                 >
-                  Risk Flag <SortIcon col="risk_level" />
+                  Risk <SortIcon col="risk_level" />
                 </button>
               </th>
-              <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-right">
+              <th className="px-4 py-3 text-right" style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}>
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-gray-400">
-                  <p className="text-sm font-medium">No patients found</p>
-                  <p className="text-xs mt-1">Try adjusting your search</p>
+                <td colSpan={5}>
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <Search style={{ width: 48, height: 48, color: 'var(--ms-text-tertiary)', strokeWidth: 1, marginBottom: 12 }} />
+                    <p style={{ fontSize: 17, fontWeight: 500, color: 'var(--ms-text-primary)', marginBottom: 4 }}>
+                      No patients found
+                    </p>
+                    <p style={{ fontSize: 15, color: 'var(--ms-text-secondary)' }}>
+                      Try adjusting your search
+                    </p>
+                  </div>
                 </td>
               </tr>
             ) : (
-              filtered.map((patient) => {
+              filtered.map((patient, i) => {
+                const shade = avatarShade(patient.full_name)
                 const isPoly = patient.active_med_count >= 4
                 return (
                   <tr
                     key={patient.id}
-                    className="hover:bg-gray-50/70 transition-colors cursor-pointer"
                     onClick={() => router.push(`/patients/${patient.id}`)}
+                    style={{
+                      borderTop: i > 0 ? '0.5px solid rgba(0,0,0,0.06)' : undefined,
+                      cursor: 'pointer',
+                      height: 56,
+                      animationName: 'ms-entry',
+                      animationDuration: '200ms',
+                      animationTimingFunction: 'ease-out',
+                      animationFillMode: 'both',
+                      animationDelay: `${i * 30}ms`,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,0,0,0.02)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '' }}
                   >
-                    <td className="px-5 py-4">
+                    {/* Patient — avatar + name + med count */}
+                    <td className="px-5">
                       <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-full bg-[#0D6B5E]/10 flex items-center justify-center shrink-0">
-                          <span className="text-[#0D6B5E] text-xs font-semibold">
-                            {getInitials(patient.full_name)}
-                          </span>
+                        <div
+                          style={{
+                            width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                            backgroundColor: shade.bg, color: shade.fg,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, fontWeight: 500, userSelect: 'none',
+                          }}
+                        >
+                          {getInitials(patient.full_name)}
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-gray-900">
+                            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--ms-text-primary)' }}>
                               {patient.full_name}
-                            </p>
-                            {isPoly && (
-                              <AlertTriangle className="size-3.5 text-amber-500" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-xs text-gray-400">
-                              {patient.active_med_count} Active Med
-                              {patient.active_med_count !== 1 ? 's' : ''}
                             </span>
                             {isPoly && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
-                                POLY
-                              </span>
+                              <AlertTriangle style={{ width: 14, height: 14, color: '#F59E0B', flexShrink: 0 }} />
                             )}
                           </div>
+                          <span style={{ fontSize: 13, color: 'var(--ms-text-tertiary)' }}>
+                            · {patient.active_med_count} active med{patient.active_med_count !== 1 ? 's' : ''}
+                            {isPoly && (
+                              <span style={{
+                                marginLeft: 6, fontSize: 11, fontWeight: 500, padding: '1px 6px',
+                                borderRadius: 100, backgroundColor: 'rgba(217,119,6,0.08)',
+                                border: '1px solid rgba(217,119,6,0.2)', color: '#92400E',
+                              }}>
+                                Poly
+                              </span>
+                            )}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <PDCMiniBar score={patient.pdc_score} />
+
+                    {/* PDC bar */}
+                    <td className="px-4">
+                      <PDCBar score={patient.pdc_score} mounted={mounted} />
                     </td>
-                    <td className="px-4 py-4">
+
+                    {/* Inventory */}
+                    <td className="px-4">
                       <InventoryBadge days={patient.inventory_days} />
                     </td>
-                    <td className="px-4 py-4">
-                      <RiskBadge risk={patient.risk_level} />
+
+                    {/* Risk */}
+                    <td className="px-4">
+                      <RiskPill risk={patient.risk_level} />
                     </td>
-                    <td className="px-4 py-4">
-                      <div
-                        className="flex items-center gap-2 justify-end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-7"
+
+                    {/* Actions — ghost text buttons */}
+                    <td className="px-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-3 justify-end">
+                        <button
+                          style={{ fontSize: 13, color: 'var(--ms-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 32 }}
                           onClick={() => router.push(`/patients/${patient.id}`)}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ms-text-primary)' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ms-text-secondary)' }}
                         >
-                          View Profile
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-7 gap-1"
+                          View
+                        </button>
+                        <button
+                          className="flex items-center gap-1"
+                          style={{ fontSize: 13, color: 'var(--ms-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, minHeight: 32 }}
                           onClick={() => setMessagingPatient({ id: patient.id, name: patient.full_name })}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ms-text-primary)' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ms-text-secondary)' }}
                         >
-                          <MessageCircle className="size-3" />
+                          <MessageCircle style={{ width: 14, height: 14 }} />
                           Message
-                        </Button>
+                        </button>
                       </div>
                     </td>
                   </tr>

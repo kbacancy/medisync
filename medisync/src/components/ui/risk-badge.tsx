@@ -1,5 +1,3 @@
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import type { RiskLevel } from '@/types';
 
 interface RiskBadgeProps {
@@ -7,20 +5,56 @@ interface RiskBadgeProps {
   className?: string;
 }
 
-const riskConfig: Record<RiskLevel, string> = {
-  LOW: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  MODERATE: 'bg-amber-50 text-amber-700 border-amber-200',
-  HIGH: 'bg-orange-50 text-orange-700 border-orange-200',
-  CRITICAL: 'bg-red-50 text-red-700 border-red-200',
+const RISK_STYLES: Record<RiskLevel, { bg: string; border: string; color: string }> = {
+  CRITICAL: {
+    bg: 'rgba(220,38,38,0.08)',
+    border: 'rgba(220,38,38,0.2)',
+    color: '#B91C1C',
+  },
+  HIGH: {
+    bg: 'rgba(217,119,6,0.08)',
+    border: 'rgba(217,119,6,0.2)',
+    color: '#92400E',
+  },
+  MODERATE: {
+    bg: 'rgba(59,130,246,0.08)',
+    border: 'rgba(59,130,246,0.2)',
+    color: '#1D4ED8',
+  },
+  LOW: {
+    bg: 'rgba(16,185,129,0.08)',
+    border: 'rgba(16,185,129,0.2)',
+    color: '#065F46',
+  },
+};
+
+const RISK_LABELS: Record<RiskLevel, string> = {
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MODERATE: 'Moderate',
+  LOW: 'Low',
 };
 
 export function RiskBadge({ risk, className }: RiskBadgeProps) {
+  const s = RISK_STYLES[risk];
   return (
-    <Badge
-      variant="outline"
-      className={cn(riskConfig[risk], 'font-medium', className)}
+    <span
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 12,
+        fontWeight: 500,
+        lineHeight: 1.4,
+        padding: '3px 8px',
+        borderRadius: 100,
+        border: `1px solid ${s.border}`,
+        backgroundColor: s.bg,
+        color: s.color,
+        whiteSpace: 'nowrap',
+      }}
     >
-      {risk}
-    </Badge>
+      {RISK_LABELS[risk]}
+    </span>
   );
 }

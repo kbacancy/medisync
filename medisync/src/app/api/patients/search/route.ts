@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 
 function getServiceClient() {
   return createClient(
@@ -17,6 +18,9 @@ function getInitials(name: string): string {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   const q = request.nextUrl.searchParams.get('q')?.trim() ?? ''
   if (q.length < 2) return NextResponse.json([])
 
@@ -47,8 +51,8 @@ export async function GET(request: NextRequest) {
     .map((p) => ({
       patientId: patientMap.get(p.id)!,
       profileId: p.id,
-      name: p.full_name as string,
-      initials: getInitials(p.full_name as string),
+      name:      p.full_name as string,
+      initials:  getInitials(p.full_name as string),
     }))
 
   return NextResponse.json(results)

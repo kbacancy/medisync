@@ -28,11 +28,49 @@ function getInitials(name: string) {
     .join('');
 }
 
+const TEAL_SHADES = [
+  { bg: '#E8F5F1', fg: '#1A7A5E' },
+  { bg: '#D0EDE5', fg: '#155F4A' },
+  { bg: '#BAE4DA', fg: '#0E5241' },
+  { bg: '#C8EDE3', fg: '#14694F' },
+  { bg: '#D8F0E8', fg: '#1A7A5E' },
+  { bg: '#E2F4EE', fg: '#177A5C' },
+];
+
+function avatarShade(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return TEAL_SHADES[Math.abs(h) % TEAL_SHADES.length];
+}
+
+function AvatarCircle({ name }: { name: string }) {
+  const shade = avatarShade(name);
+  return (
+    <div
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        backgroundColor: shade.bg,
+        color: shade.fg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        fontSize: 14,
+        fontWeight: 500,
+        userSelect: 'none',
+      }}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
+
 function pdcBarColor(score: number): string {
-  if (score >= 80) return 'var(--ms-ok)';
-  if (score >= 65) return 'var(--ms-warn)';
-  if (score >= 50) return '#F97316';
-  return 'var(--ms-critical)';
+  if (score >= 80) return '#10B981';
+  if (score >= 60) return '#F59E0B';
+  return '#EF4444';
 }
 
 function calcTrend(
@@ -143,14 +181,14 @@ async function RecentPatientsSection() {
   return (
     <div
       className="bg-white rounded-xl overflow-hidden"
-      style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04)' }}
     >
       {/* Section header */}
       <div
         className="flex items-center justify-between px-5 py-4"
-        style={{ borderBottom: '1px solid var(--ms-border)' }}
+        style={{ borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}
       >
-        <h2 className="text-base font-medium" style={{ color: 'var(--ms-text-primary)' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.1px' }}>
           Recent Patients
         </h2>
         <Link
@@ -182,12 +220,12 @@ async function RecentPatientsSection() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: 'var(--ms-surface-raised)' }}>
-                {['Patient', 'Risk', 'PDC %', 'Last Activity', ''].map((col) => (
+              <tr>
+                {['Patient', 'Risk', 'PDC Score', 'Last Activity', ''].map((col) => (
                   <th
                     key={col}
-                    className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: 'var(--ms-text-tertiary)' }}
+                    className="px-5 py-3 text-left"
+                    style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ms-text-tertiary)' }}
                   >
                     {col}
                   </th>
@@ -198,22 +236,14 @@ async function RecentPatientsSection() {
               {patients.map((patient) => (
                 <tr
                   key={patient.id}
-                  className="group transition-colors duration-100 hover:bg-[#F9FAFB]"
-                  style={{ borderTop: '0.5px solid var(--ms-border)' }}
+                  className="group ms-row-hover transition-colors duration-100"
+                  style={{ borderTop: '0.5px solid rgba(0,0,0,0.06)' }}
                 >
                   {/* Patient avatar + name */}
-                  <td className="px-5 py-4">
+                  <td className="px-5" style={{ height: 56 }}>
                     <div className="flex items-center gap-3">
-                      <div
-                        className="size-9 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold select-none"
-                        style={{
-                          backgroundColor: 'var(--ms-primary-light)',
-                          color: 'var(--ms-primary)',
-                        }}
-                      >
-                        {getInitials(patient.full_name)}
-                      </div>
-                      <span className="font-medium" style={{ color: 'var(--ms-text-primary)' }}>
+                      <AvatarCircle name={patient.full_name} />
+                      <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--ms-text-primary)' }}>
                         {patient.full_name}
                       </span>
                     </div>
@@ -225,15 +255,11 @@ async function RecentPatientsSection() {
                   </td>
 
                   {/* PDC bar */}
-                  <td className="px-5 py-4">
+                  <td className="px-5">
                     <div className="flex items-center gap-2.5">
                       <div
-                        className="rounded-full overflow-hidden"
-                        style={{
-                          width: 160,
-                          height: 6,
-                          backgroundColor: 'var(--ms-border)',
-                        }}
+                        className="rounded-full overflow-hidden shrink-0"
+                        style={{ width: 200, height: 6, backgroundColor: 'rgba(0,0,0,0.08)' }}
                       >
                         <div
                           className="h-full rounded-full"
@@ -244,8 +270,12 @@ async function RecentPatientsSection() {
                         />
                       </div>
                       <span
-                        className="text-xs font-medium tabular-nums"
-                        style={{ color: 'var(--ms-text-secondary)' }}
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          color: pdcBarColor(patient.pdc_score),
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
                       >
                         {patient.pdc_score}%
                       </span>
@@ -253,20 +283,17 @@ async function RecentPatientsSection() {
                   </td>
 
                   {/* Last activity */}
-                  <td className="px-5 py-4 text-xs" style={{ color: 'var(--ms-text-secondary)' }}>
+                  <td className="px-5" style={{ fontSize: 13, color: 'var(--ms-text-tertiary)' }}>
                     {formatDistanceToNow(new Date(patient.last_activity), { addSuffix: true })}
                   </td>
 
-                  {/* Action — ghost button visible on hover */}
-                  <td className="px-5 py-4">
-                    <Link href={`/patients/${patient.id}`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-7 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
-                      >
-                        View
-                      </Button>
+                  {/* Action */}
+                  <td className="px-5">
+                    <Link
+                      href={`/patients/${patient.id}`}
+                      className="ms-ghost-link opacity-0 group-hover:opacity-100 transition-opacity duration-100"
+                    >
+                      View
                     </Link>
                   </td>
                 </tr>
@@ -325,13 +352,13 @@ async function TodayAppointmentsSection() {
   return (
     <div
       className="bg-white rounded-xl overflow-hidden"
-      style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04)' }}
     >
       <div
         className="px-5 py-4"
-        style={{ borderBottom: '1px solid var(--ms-border)' }}
+        style={{ borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}
       >
-        <h2 className="text-base font-medium" style={{ color: 'var(--ms-text-primary)' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.1px' }}>
           Today&apos;s Appointments
         </h2>
       </div>
@@ -351,14 +378,16 @@ async function TodayAppointmentsSection() {
           {appointments.map((appt, i) => (
             <div
               key={appt.id}
-              className="flex items-center gap-4 px-5 py-4"
-              style={i > 0 ? { borderTop: '0.5px solid var(--ms-border)' } : undefined}
+              className="flex items-center gap-3 px-5 py-3"
+              style={i > 0 ? { borderTop: '0.5px solid rgba(0,0,0,0.06)' } : undefined}
             >
               {/* Time — monospace */}
               <p
-                className="text-sm font-medium tabular-nums shrink-0 w-12 text-center"
+                className="shrink-0 w-12 text-right tabular-nums"
                 style={{
-                  color: 'var(--ms-text-secondary)',
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: 'var(--ms-text-tertiary)',
                   fontFamily: 'var(--font-mono), monospace',
                 }}
               >
@@ -366,22 +395,14 @@ async function TodayAppointmentsSection() {
               </p>
 
               {/* Patient avatar */}
-              <div
-                className="size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold select-none"
-                style={{
-                  backgroundColor: 'var(--ms-primary-light)',
-                  color: 'var(--ms-primary)',
-                }}
-              >
-                {getInitials(appt.patient_name)}
-              </div>
+              <AvatarCircle name={appt.patient_name} />
 
               {/* Name + reason */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: 'var(--ms-text-primary)' }}>
+                <p className="truncate" style={{ fontSize: 15, fontWeight: 500, color: 'var(--ms-text-primary)' }}>
                   {appt.patient_name}
                 </p>
-                <p className="text-xs truncate" style={{ color: 'var(--ms-text-secondary)' }}>
+                <p className="truncate" style={{ fontSize: 13, color: 'var(--ms-text-secondary)' }}>
                   {appt.reason}
                 </p>
               </div>
@@ -442,18 +463,62 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Greeting hero */}
       <div>
-        <h2
-          className="font-medium"
+        {/* Section label — mirrors BacancyLabIQ "OPERATIONAL SURFACE" pattern */}
+        <p
           style={{
-            fontSize: 22,
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--ms-primary)',
+            marginBottom: 8,
+          }}
+        >
+          Clinical Surface
+        </p>
+        <h2
+          style={{
+            fontSize: 42,
+            fontWeight: 700,
             color: 'var(--ms-text-primary)',
-            letterSpacing: '-0.02em',
+            letterSpacing: '-0.03em',
+            lineHeight: 1.1,
           }}
         >
           {greeting}
         </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--ms-text-secondary)' }}>
+        <p style={{ marginTop: 6, fontSize: 15, color: 'var(--ms-text-secondary)', lineHeight: 1.6 }}>
           {today} — here&apos;s an overview of your patients.
+        </p>
+      </div>
+
+      {/* Smart Insight banner */}
+      <div
+        className="flex items-start gap-3 rounded-xl px-4 py-3.5"
+        style={{
+          backgroundColor: 'rgba(26,122,94,0.07)',
+          border: '1px solid rgba(26,122,94,0.15)',
+        }}
+      >
+        <span className="flex items-center gap-2 shrink-0 mt-0.5">
+          <span
+            className="inline-block rounded-full ms-live-dot"
+            style={{ width: 8, height: 8, backgroundColor: 'var(--ms-primary)' }}
+          />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: 'var(--ms-primary)',
+            }}
+          >
+            Smart Insight · Live
+          </span>
+        </span>
+        <p style={{ fontSize: 14, color: 'var(--ms-text-secondary)', lineHeight: 1.5 }}>
+          Review patients with PDC scores below 60% — early intervention now can prevent hospitalisation within 30 days.
         </p>
       </div>
 

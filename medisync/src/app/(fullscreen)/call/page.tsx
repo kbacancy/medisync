@@ -8,12 +8,9 @@ interface CallPageProps {
 
 export default async function CallPage({ searchParams }: CallPageProps) {
   const params = await searchParams
-  const roomUrl = typeof params.roomUrl === 'string' ? params.roomUrl : undefined
   const roomName = typeof params.roomName === 'string' ? params.roomName : undefined
-  const appointmentId =
-    typeof params.appointmentId === 'string' ? params.appointmentId : undefined
 
-  if (!roomUrl || !roomName || !appointmentId) {
+  if (!roomName) {
     redirect('/medications')
   }
 
@@ -34,10 +31,7 @@ export default async function CallPage({ searchParams }: CallPageProps) {
 
   return (
     <PatientCallView
-      appointmentId={appointmentId}
-      roomUrl={decodeURIComponent(roomUrl)}
       roomName={roomName}
-      userId={user.id}
       userName={userName}
     />
   )

@@ -25,34 +25,68 @@ export function PatientHeader({ profile }: PatientHeaderProps) {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 bg-white border-b border-gray-100 z-40"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      className="fixed top-0 left-0 right-0 z-40"
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(0,0,0,0.07)',
+      }}
     >
       <div className="h-14 flex items-center justify-between px-4">
-      <span className="font-bold text-[#0D6B5E] text-lg">MediSync</span>
-      <div className="flex items-center gap-2">
-        <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <Bell className="size-5 text-gray-600" />
-          <span className="absolute top-1.5 right-1.5 size-2 bg-amber-400 rounded-full" />
-        </button>
-
-        {/* Avatar */}
-        <div className="size-8 rounded-full bg-[#0D6B5E] flex items-center justify-center">
-          <span className="text-white text-xs font-semibold">
-            {getInitials(profile.full_name)}
-          </span>
-        </div>
-
-        {/* Logout */}
-        <button
-          onClick={handleSignOut}
-          className="p-2 rounded-lg hover:bg-red-50 transition-colors group"
-          aria-label="Sign out"
-          title="Sign out"
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: 17,
+            letterSpacing: '-0.02em',
+            color: 'var(--ms-primary)',
+          }}
         >
-          <LogOut className="size-5 text-gray-400 group-hover:text-red-500 transition-colors" />
-        </button>
-      </div>
+          MediSync
+        </span>
+
+        <div className="flex items-center gap-1">
+          <button
+            className="relative p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--ms-text-secondary)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--ms-surface-raised)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            <Bell className="size-5" />
+            <span
+              className="absolute top-1.5 right-1.5 size-2 rounded-full"
+              style={{ backgroundColor: 'var(--ms-warn)' }}
+            />
+          </button>
+
+          <div
+            className="size-8 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: 'var(--ms-primary)' }}
+          >
+            <span className="text-white text-xs font-semibold">
+              {getInitials(profile.full_name)}
+            </span>
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            className="p-2 rounded-lg transition-colors group"
+            aria-label="Sign out"
+            title="Sign out"
+            style={{ color: 'var(--ms-text-tertiary)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(220,38,38,0.06)';
+              e.currentTarget.style.color = 'var(--ms-critical)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--ms-text-tertiary)';
+            }}
+          >
+            <LogOut className="size-5" />
+          </button>
+        </div>
       </div>
     </header>
   );

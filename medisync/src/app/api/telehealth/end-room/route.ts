@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 import { sendPushToUser } from '@/lib/notifications/sendPush'
 
 const schema = z.object({
-  appointmentId: z.string().min(1),
-  roomName: z.string().min(1),
-  patientId: z.string().optional(),
+  appointmentId: z.uuid(),
+  patientId:     z.uuid().optional(),
 })
 
 function getServiceClient() {
@@ -17,6 +17,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -35,16 +38,14 @@ export async function POST(request: Request) {
   const { appointmentId, patientId } = parsed.data
   const supabase = getServiceClient()
 
-  // Mark appointment as completed
   await supabase
     .from('appointments')
     .update({
-      status: 'completed',
+      status:   'completed',
       ended_at: new Date().toISOString(),
     })
     .eq('id', appointmentId)
 
-  // patientId is patients.id — resolve to profiles.id for push_subscriptions lookup
   if (patientId) {
     const { data: patientRecord } = await supabase
       .from('patients')
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
         tag:       `call-ended-${appointmentId}`,
         data:      { type: 'call_ended', appointmentId },
         channelId: 'default',
-      }).catch(console.error)
+      }).catch(() => {})
     }
   }
 

@@ -30,7 +30,7 @@ export function ActiveCallBanner({
   return (
     <div
       className="fixed left-0 right-0 z-[60] px-4"
-      style={{ bottom: 'calc(68px + env(safe-area-inset-bottom))' }}
+      style={{ bottom: 'calc(57px + env(safe-area-inset-bottom))' }}
     >
       <div className="rounded-2xl bg-gradient-to-r from-sky-600 to-blue-700 shadow-xl overflow-hidden">
       <div className="flex items-center gap-4 px-4 py-3.5">

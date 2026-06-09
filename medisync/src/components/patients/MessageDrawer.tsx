@@ -69,10 +69,18 @@ export function MessageDrawer({ patientId, patientName, onClose }: Props) {
           filter: `patient_id=eq.${patientId}`,
         },
         (payload) => {
+          const newMsg = payload.new as Message
           setMessages((prev) => {
-            // Avoid duplicates if we already added optimistically
-            const exists = prev.some((m) => m.id === (payload.new as Message).id)
-            return exists ? prev : [...prev, payload.new as Message]
+            // Standard dedup — already have this real ID (e.g. from handleSend swap)
+            if (prev.some((m) => m.id === newMsg.id)) return prev
+            // Replace a matching optimistic bubble in-place to avoid the flash duplicate
+            const optimisticIdx = prev.findIndex(
+              (m) => m.id.startsWith('optimistic-') && m.body === newMsg.body
+            )
+            if (optimisticIdx !== -1) {
+              return prev.map((m, i) => (i === optimisticIdx ? newMsg : m))
+            }
+            return [...prev, newMsg]
           })
         }
       )
@@ -117,11 +125,15 @@ export function MessageDrawer({ patientId, patientName, onClose }: Props) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error ?? 'Failed to send')
       }
-      // Realtime will add the real message; remove the optimistic one
       const { message: confirmed } = await res.json()
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimistic.id ? confirmed : m))
-      )
+      setMessages((prev) => {
+        // If realtime already delivered the confirmed message, just drop the optimistic
+        if (prev.some((m) => m.id === confirmed.id)) {
+          return prev.filter((m) => m.id !== optimistic.id)
+        }
+        // Realtime hasn't fired yet — swap optimistic → confirmed in-place
+        return prev.map((m) => (m.id === optimistic.id ? confirmed : m))
+      })
     } catch (err) {
       // Revert optimistic insert and restore draft
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))

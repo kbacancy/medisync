@@ -5,15 +5,11 @@ import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface PatientCallViewProps {
-  appointmentId: string
-  roomUrl: string
   roomName: string
-  userId: string
   userName: string
 }
 
 export function PatientCallView({
-  appointmentId,
   roomName,
   userName,
 }: PatientCallViewProps) {
@@ -21,9 +17,6 @@ export function PatientCallView({
   const [loaded, setLoaded] = useState(false)
   const routerRef = useRef(router)
   routerRef.current = router
-
-  // Suppress unused-var warnings
-  void appointmentId
 
   // Listen for Jitsi's postMessage — fires when the patient clicks hangup inside the iframe
   useEffect(() => {

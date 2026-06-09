@@ -361,9 +361,8 @@ export function TelehealthCenter({
         .limit(50),
     ])
       .then(([{ data: pt, error: ptErr }, { data: rxRows, error: rxErr }, { data: symRows }]) => {
-        if (ptErr) console.error('[EHR] patients query failed — code:', ptErr.code, '| message:', ptErr.message, '| details:', ptErr.details, '| hint:', ptErr.hint)
-        if (rxErr) console.error('[EHR] prescriptions query failed — code:', rxErr.code, '| message:', rxErr.message)
-        console.log('[EHR] activeId:', activeId, '| pt:', pt, '| ptErr:', ptErr)
+        if (ptErr) console.error('[EHR] patients query failed — code:', ptErr.code)
+        if (rxErr) console.error('[EHR] prescriptions query failed — code:', rxErr.code)
         if (!pt) { setActivePatient(null); return }
         type RawPt = {
           id: string
@@ -650,10 +649,7 @@ export function TelehealthCenter({
           {activeCall ? (
             <VideoCallPanel
               appointmentId={activeCall.appointmentId}
-              patientName={activeCall.patientName}
               doctorName={doctorName}
-              doctorId={doctorId}
-              roomUrl={activeCall.roomUrl}
               roomName={activeCall.roomName}
               onCallEnded={handleCallEnded}
             />

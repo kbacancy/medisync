@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 
 const schema = z.object({
-  patientId: z.string(),
-  doctorId: z.string(),
-  drugName: z.string().min(1),
-  rxcui: z.string().optional(),
-  ndc: z.string().optional(),
-  strength: z.string().min(1),
-  instructions: z.string().optional(),
-  frequency: z.string().min(1),
-  timeOfDay: z.array(z.string()).optional(),
-  startDate: z.string().min(1),
-  endDate: z.string().optional(),
-  status: z.string().default('active'),
-  overrideCode: z.string().optional(),
+  patientId:         z.uuid(),
+  drugName:          z.string().min(1),
+  rxcui:             z.string().optional(),
+  ndc:               z.string().optional(),
+  strength:          z.string().min(1),
+  instructions:      z.string().optional(),
+  frequency:         z.string().min(1),
+  timeOfDay:         z.array(z.string()).optional(),
+  startDate:         z.string().min(1),
+  endDate:           z.string().optional(),
+  status:            z.string().default('active'),
+  overrideCode:      z.string().optional(),
   quantityDispensed: z.number().optional(),
-  daysSupply: z.number().optional(),
-  form: z.string().optional(),
+  daysSupply:        z.number().optional(),
+  form:              z.string().optional(),
 })
 
 function getServiceClient() {
@@ -29,6 +29,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -46,7 +49,6 @@ export async function POST(request: Request) {
 
   const {
     patientId,
-    doctorId,
     drugName,
     rxcui,
     ndc,
@@ -62,39 +64,41 @@ export async function POST(request: Request) {
     form,
   } = parsed.data
 
+  // clinician_id is always the authenticated user — never trusted from the client
   const supabase = getServiceClient()
 
   const { data: prescription, error } = await supabase
     .from('prescriptions')
     .insert({
-      patient_id: patientId,
-      clinician_id: doctorId,
+      patient_id:      patientId,
+      clinician_id:    auth.userId,
       medication_name: drugName,
-      dosage: strength,
+      dosage:          strength,
       frequency,
-      instructions: instructions ?? null,
-      form: form ?? null,
-      time_of_day: timeOfDay ?? [],
-      start_date: startDate,
-      end_date: endDate ?? null,
+      instructions:    instructions ?? null,
+      form:            form ?? null,
+      time_of_day:     timeOfDay ?? [],
+      start_date:      startDate,
+      end_date:        endDate ?? null,
       status,
-      rxcui: rxcui ?? null,
-      ndc_code: ndc ?? null,
-      days_supply: daysSupply ?? 30,
-      refills: 0,
+      rxcui:           rxcui ?? null,
+      ndc_code:        ndc ?? null,
+      days_supply:     daysSupply ?? 30,
+      refills:         0,
     })
     .select()
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create prescription' }, { status: 500 })
   }
 
   if (overrideCode && prescription) {
     await supabase.from('prescription_overrides').insert({
       prescription_id: prescription.id,
-      override_code: overrideCode,
-      created_at: new Date().toISOString(),
+      override_code:   overrideCode,
+      doctor_id:       auth.userId,
+      created_at:      new Date().toISOString(),
     })
   }
 

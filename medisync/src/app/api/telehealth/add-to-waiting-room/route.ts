@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
 
 const schema = z.object({
-  patientId: z.string().uuid(),
-  reason: z.string().min(1),
-  clinicianId: z.string().uuid(),
+  patientId: z.uuid(),
+  reason:    z.string().min(1).max(500),
 })
 
 function getServiceClient() {
@@ -16,6 +16,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -31,10 +34,12 @@ export async function POST(request: Request) {
     )
   }
 
-  const { patientId, reason, clinicianId } = parsed.data
+  const { patientId, reason } = parsed.data
+  // clinicianId is always the authenticated user — never trusted from the client
+  const clinicianId = auth.userId
+
   const supabase = getServiceClient()
 
-  // Block if patient already has an active telehealth appointment today
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
   const todayEnd = new Date(todayStart)
@@ -60,19 +65,19 @@ export async function POST(request: Request) {
   const { data: appt, error } = await supabase
     .from('appointments')
     .insert({
-      patient_id: patientId,
+      patient_id:   patientId,
       clinician_id: clinicianId,
       scheduled_at: new Date().toISOString(),
-      type: 'telehealth',
+      type:         'telehealth',
       reason,
-      status: 'scheduled',
+      status:       'scheduled',
     })
     .select('id')
     .single()
 
   if (error) {
     return NextResponse.json(
-      { error: 'Failed to create appointment', detail: error.message },
+      { error: 'Failed to create appointment' },
       { status: 500 }
     )
   }

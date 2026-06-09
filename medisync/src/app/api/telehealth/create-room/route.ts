@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+import { requireClinician } from '@/lib/api/auth'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sendPushToUser } from '@/lib/notifications/sendPush'
 
 const schema = z.object({
-  appointmentId: z.string().min(1),
-  patientId: z.string().min(1),
-  doctorId: z.string().min(1),
-  doctorName: z.string().min(1),
+  appointmentId: z.uuid(),
+  patientId:     z.uuid(),
 })
 
 function getServiceClient() {
@@ -18,6 +18,9 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireClinician()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -33,25 +36,33 @@ export async function POST(request: Request) {
     )
   }
 
-  const { appointmentId, patientId, doctorName } = parsed.data
+  const { appointmentId, patientId } = parsed.data
+
+  // Derive doctor name from the authenticated clinician's profile
+  const authSupabase = await createServerClient()
+  const { data: clinicianProfile } = await authSupabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', auth.userId)
+    .single()
+
+  const doctorName = clinicianProfile?.full_name as string ?? 'Your Doctor'
+
   const supabase = getServiceClient()
 
-  // Jitsi rooms are created automatically on first join — no API call needed.
-  // The room name is deterministic so both sides resolve to the same room.
   const roomName = `medisync-${appointmentId}`
   const roomUrl = `https://meet.jit.si/${roomName}`
 
   await supabase
     .from('appointments')
     .update({
-      room_url: roomUrl,
-      room_name: roomName,
-      status: 'in-call',
+      room_url:   roomUrl,
+      room_name:  roomName,
+      status:     'in-call',
       started_at: new Date().toISOString(),
     })
     .eq('id', appointmentId)
 
-  // Resolve patients.id → profiles.id for push_subscriptions lookup
   const { data: patientRecord } = await supabase
     .from('patients')
     .select('profile_id')
@@ -62,22 +73,20 @@ export async function POST(request: Request) {
   if (!profileId) {
     console.warn(`[create-room] No profile_id found for patient ${patientId} — push notification skipped`)
   } else {
-    const callUrl =
-      `/call?appointmentId=${encodeURIComponent(appointmentId)}` +
-      `&roomUrl=${encodeURIComponent(roomUrl)}` +
-      `&roomName=${encodeURIComponent(roomName)}`
+    // Only send the appointmentId in the URL — the call page resolves the
+    // roomUrl server-side from the appointment record (avoids PHI in URL params)
+    const callUrl = `/call?appointmentId=${encodeURIComponent(appointmentId)}`
 
     await sendPushToUser(supabase, profileId, {
-      title: `Dr. ${doctorName} is ready for your appointment`,
-      body: 'Tap to join your video consultation now',
-      url: callUrl,
-      tag: `call-${appointmentId}`,
-      data: { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
-      priority: 'high',
+      title:     `Dr. ${doctorName} is ready for your appointment`,
+      body:      'Tap to join your video consultation now',
+      url:       callUrl,
+      tag:       `call-${appointmentId}`,
+      data:      { type: 'call_started', appointmentId, roomUrl, roomName, doctorName },
+      priority:  'high',
       channelId: 'telehealth-calls',
-      // Drop after 2 min — APNs can take longer than 60 s under load
-      ttl: 120,
-      urgency: 'high',
+      ttl:       120,
+      urgency:   'high',
     })
   }
 

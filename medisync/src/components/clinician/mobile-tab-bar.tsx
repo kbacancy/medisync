@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Video, Calendar, Settings } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 const tabs = [
-  { href: '/dashboard',  label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/patients',   label: 'Patients',   icon: Users },
-  { href: '/telehealth', label: 'Telehealth', icon: Video },
-  { href: '/schedule',   label: 'Schedule',   icon: Calendar },
-  { href: '/settings',   label: 'Settings',   icon: Settings },
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/patients',   label: 'Patients',    icon: Users },
+  { href: '/telehealth', label: 'Telehealth',  icon: Video },
+  { href: '/schedule',   label: 'Schedule',    icon: Calendar },
+  { href: '/settings',   label: 'Settings',    icon: Settings },
 ];
 
 export function ClinicianMobileTabBar() {
@@ -18,10 +17,14 @@ export function ClinicianMobileTabBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-white border-t z-50 flex md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden"
       style={{
-        borderColor: 'var(--ms-border)',
+        height: 'calc(49px + env(safe-area-inset-bottom))',
         paddingBottom: 'env(safe-area-inset-bottom)',
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '0.5px solid rgba(0,0,0,0.1)',
       }}
     >
       {tabs.map(({ href, label, icon: Icon }) => {
@@ -30,13 +33,22 @@ export function ClinicianMobileTabBar() {
           <Link
             key={href}
             href={href}
-            className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-0.5 h-[60px] transition-colors text-[11px] font-medium',
-              isActive ? 'text-[#0A7B5C]' : 'text-gray-400'
-            )}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5"
+            style={{
+              color: isActive ? '#1A7A5E' : '#9A9A9A',
+              minHeight: 44,
+            }}
           >
-            <Icon className="size-5" />
-            <span>{label}</span>
+            <Icon
+              style={{
+                width: 22,
+                height: 22,
+                strokeWidth: isActive ? 2 : 1.5,
+              }}
+            />
+            <span style={{ fontSize: 10, fontWeight: 500, lineHeight: 1 }}>
+              {label}
+            </span>
           </Link>
         );
       })}

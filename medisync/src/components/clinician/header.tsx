@@ -112,23 +112,32 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
 
   return (
     <header
-      className="fixed top-0 right-0 h-16 z-40 flex items-center justify-between px-6"
+      className="fixed top-0 right-0 z-40"
       style={{
         left: sidebarWidth,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid var(--ms-border)',
-        boxShadow: 'var(--ms-shadow-sm)',
+        paddingTop: 'env(safe-area-inset-top)',
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(0,0,0,0.07)',
         transition: 'left 300ms ease',
       }}
     >
-      {/* Left: page title */}
-      <h1
-        className="text-[17px] font-semibold truncate"
-        style={{ color: 'var(--ms-text-primary)', letterSpacing: '-0.02em' }}
-      >
-        {title}
-      </h1>
+    <div className="h-16 flex items-center justify-between px-6">
+      {/* Left: page context */}
+      <div>
+        <p
+          style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ms-primary)', lineHeight: 1 }}
+        >
+          MediSync
+        </p>
+        <h1
+          className="truncate"
+          style={{ fontSize: 16, fontWeight: 600, color: 'var(--ms-text-primary)', letterSpacing: '-0.02em', lineHeight: 1.3, marginTop: 1 }}
+        >
+          {title}
+        </h1>
+      </div>
 
       {/* Right: action cluster */}
       <div className="flex items-center gap-1.5">
@@ -317,16 +326,20 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
         {/* Emergency pill */}
         <button
           onClick={() => setEmergencyOpen(true)}
-          className="flex items-center gap-1.5 rounded-full text-white text-xs font-semibold px-3.5 py-1.5 transition-colors duration-150"
+          className="flex items-center gap-1.5 text-white transition-colors duration-120"
           style={{
             backgroundColor: 'var(--ms-critical)',
-            boxShadow: '0 2px 8px rgba(220,38,38,0.30)',
+            fontSize: 13,
+            fontWeight: 500,
+            height: 32,
+            padding: '0 12px',
+            borderRadius: 8,
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#b91c1c'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ms-critical)'; }}
         >
           <AlertTriangle className="size-3.5" />
-          EMERGENCY
+          Emergency
         </button>
 
         <EmergencyModal
@@ -401,6 +414,7 @@ export function ClinicianHeader({ profile, sidebarWidth }: ClinicianHeaderProps)
           )}
         </div>
       </div>
+    </div>{/* end h-16 row */}
     </header>
   );
 }

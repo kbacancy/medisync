@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { requireAuth } from '@/lib/api/auth'
 
 const schema = z.object({
-  prescriptionId: z.string(),
-  drugName: z.string(),
-  strength: z.string(),
-  scheduledTime: z.string(),
+  prescriptionId: z.uuid(),
+  drugName:       z.string(),
+  strength:       z.string(),
+  scheduledTime:  z.string(),
 })
 
 function getServiceClient() {
@@ -18,9 +19,9 @@ function getServiceClient() {
 }
 
 function configureWebPush(): boolean {
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const publicKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const privateKey = process.env.VAPID_PRIVATE_KEY
-  const subject = process.env.VAPID_SUBJECT ?? 'mailto:admin@medisync.com'
+  const subject    = process.env.VAPID_SUBJECT ?? 'mailto:admin@medisync.com'
 
   if (!publicKey || !privateKey) return false
 
@@ -29,6 +30,9 @@ function configureWebPush(): boolean {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+
   let body: unknown
   try {
     body = await request.json()
@@ -48,21 +52,13 @@ export async function POST(request: Request) {
   const supabase = getServiceClient()
 
   const targetTime = new Date(scheduledTime).getTime()
-  const delayMs = targetTime - Date.now()
+  const delayMs    = targetTime - Date.now()
 
   if (delayMs <= 0) {
     return NextResponse.json({ error: 'Scheduled time is in the past' }, { status: 400 })
   }
 
-  const payload = JSON.stringify({
-    title: 'Time to take your medication',
-    body: `${drugName} ${strength} — Tap to log dose`,
-    url: '/medications',
-    tag: `dose-${prescriptionId}`,
-    data: { prescriptionId },
-  })
-
-  // Resolve the patient's profile_id so we only push to the right user.
+  // Resolve the patient and verify the caller owns this prescription
   const { data: rxRow } = await supabase
     .from('prescriptions')
     .select('patient_id')
@@ -85,12 +81,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Patient profile not found' }, { status: 404 })
   }
 
+  // Ensure the authenticated user owns this prescription (patient calling their own dose reminder)
+  // Clinicians may also schedule on behalf of patients
+  if (auth.role === 'patient' && profileId !== auth.userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const payload = JSON.stringify({
+    title: 'Time to take your medication',
+    body:  `${drugName} ${strength} — Tap to log dose`,
+    url:   '/medications',
+    tag:   `dose-${prescriptionId}`,
+    data:  { prescriptionId },
+  })
+
   // In production this should be a Supabase Edge Function cron or pg_cron job.
   // For dev: fire-and-forget setTimeout (process-lifetime only).
   setTimeout(async () => {
     if (!configureWebPush()) return
 
-    // Fetch only this patient's Web Push subscription.
     const { data: rows } = await supabase
       .from('push_subscriptions')
       .select('token')
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
       try {
         sub = JSON.parse(row.token as string)
       } catch {
-        continue // malformed token — skip
+        continue
       }
 
       try {
@@ -113,7 +122,6 @@ export async function POST(request: Request) {
           payload
         )
       } catch (err: unknown) {
-        // 404 / 410 = subscription expired or unsubscribed
         const status = (err as { statusCode?: number }).statusCode
         if (status === 404 || status === 410) {
           staleTokens.push(row.token as string)
@@ -121,7 +129,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Clean up expired subscriptions
     if (staleTokens.length > 0) {
       await supabase
         .from('push_subscriptions')

@@ -2,17 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
@@ -21,7 +10,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -35,7 +24,6 @@ export default function LoginPage() {
       return
     }
 
-    // Route based on role — patients must never land on clinician screens
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -46,75 +34,187 @@ export default function LoginPage() {
     const destination =
       role === 'clinician' || role === 'coordinator' ? '/dashboard' : '/medications'
 
-    // Hard redirect clears the Next.js router cache so server components
-    // re-run under the new session — router.push() can serve stale clinician
-    // output to a patient who logs in after a clinician on the same browser.
     window.location.replace(destination)
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center bg-muted/40 px-4 py-12">
-      <div className="mb-8 text-center">
-        <Link href="/" className="inline-flex flex-col items-center gap-1 no-underline">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">MediSync</h1>
-          <p className="text-sm text-muted-foreground">Clinical management platform</p>
-        </Link>
+    <div
+      className="flex min-h-screen flex-col items-center justify-center px-4 py-12"
+      style={{ backgroundColor: 'var(--ms-page)' }}
+    >
+      {/* Logo lockup */}
+      <div className="mb-8 flex flex-col items-center gap-3">
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 14,
+            backgroundColor: '#1A7A5E',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ color: 'white', fontSize: 22, fontWeight: 600, userSelect: 'none', letterSpacing: '-0.5px' }}>M</span>
+        </div>
+        <p style={{ fontSize: 22, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.2px' }}>
+          MediSync
+        </p>
       </div>
 
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>Enter your credentials to access your account</CardDescription>
-        </CardHeader>
+      {/* Card — shadow only, no border */}
+      <div
+        className="w-full"
+        style={{
+          maxWidth: 400,
+          backgroundColor: 'white',
+          borderRadius: 16,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.08)',
+          padding: 32,
+        }}
+      >
+        <h1 style={{ fontSize: 20, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.2px', marginBottom: 4 }}>
+          Sign in
+        </h1>
+        <p style={{ fontSize: 15, color: 'var(--ms-text-secondary)', marginBottom: 24 }}>
+          Enter your credentials to access your account
+        </p>
 
-        <form onSubmit={handleSubmit}>
-          <CardContent className="flex flex-col gap-4">
-            {error && (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {error && (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                backgroundColor: 'rgba(220,38,38,0.06)',
+                border: '1px solid rgba(220,38,38,0.2)',
+                fontSize: 14,
+                color: '#B91C1C',
+              }}
+            >
+              {error}
             </div>
+          )}
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </CardContent>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label
+              htmlFor="email"
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--ms-text-secondary)', letterSpacing: '0.01em' }}
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{
+                height: 36,
+                padding: '0 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.12)',
+                backgroundColor: 'white',
+                fontSize: 15,
+                color: 'var(--ms-text-primary)',
+                outline: 'none',
+                transition: 'border-color 120ms ease, box-shadow 120ms ease',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#1A7A5E'
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(26,122,94,0.15)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'
+                e.currentTarget.style.boxShadow = ''
+              }}
+            />
+          </div>
 
-          <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in"}
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
-                Register
-              </Link>
-            </p>
-          </CardFooter>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label
+              htmlFor="password"
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--ms-text-secondary)', letterSpacing: '0.01em' }}
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{
+                height: 36,
+                padding: '0 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.12)',
+                backgroundColor: 'white',
+                fontSize: 15,
+                color: 'var(--ms-text-primary)',
+                outline: 'none',
+                transition: 'border-color 120ms ease, box-shadow 120ms ease',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#1A7A5E'
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(26,122,94,0.15)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'
+                e.currentTarget.style.boxShadow = ''
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: 8,
+              width: '100%',
+              height: 44,
+              borderRadius: 8,
+              backgroundColor: loading ? 'rgba(26,122,94,0.6)' : '#1A7A5E',
+              color: 'white',
+              fontSize: 15,
+              fontWeight: 500,
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background-color 120ms ease, transform 80ms ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) (e.currentTarget as HTMLElement).style.backgroundColor = '#155F4A'
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) (e.currentTarget as HTMLElement).style.backgroundColor = '#1A7A5E'
+            }}
+            onMouseDown={(e) => {
+              if (!loading) (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'
+            }}
+            onMouseUp={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = ''
+            }}
+          >
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
         </form>
-      </Card>
+
+        <p style={{ marginTop: 20, fontSize: 15, color: 'var(--ms-text-secondary)', textAlign: 'center' }}>
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/register"
+            style={{ color: '#1A7A5E', fontWeight: 500, textDecoration: 'none' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+          >
+            Register
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

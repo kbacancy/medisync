@@ -14,10 +14,10 @@ const TIME_SLOTS: Array<{
   icon: string;
   range: string;
 }> = [
-  { slot: 'morning', label: 'Morning', icon: '🌅', range: '6AM–12PM' },
+  { slot: 'morning',   label: 'Morning',   icon: '🌅', range: '6AM–12PM' },
   { slot: 'afternoon', label: 'Afternoon', icon: '☀️', range: '12PM–5PM' },
-  { slot: 'evening', label: 'Evening', icon: '🌙', range: '5PM–9PM' },
-  { slot: 'bedtime', label: 'Bedtime', icon: '🌛', range: '9PM+' },
+  { slot: 'evening',   label: 'Evening',   icon: '🌙', range: '5PM–9PM'  },
+  { slot: 'bedtime',   label: 'Bedtime',   icon: '🌛', range: '9PM+'     },
 ];
 
 function getSlotForHour(hour: number): TimeSlot {
@@ -40,10 +40,7 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
   const logsBySlot = TIME_SLOTS.reduce<
     Record<TimeSlot, Array<{ prescription: PrescriptionWithDispense; log: AdherenceLog }>>
   >(
-    (acc, { slot }) => {
-      acc[slot] = [];
-      return acc;
-    },
+    (acc, { slot }) => { acc[slot] = []; return acc; },
     { morning: [], afternoon: [], evening: [], bedtime: [] }
   );
 
@@ -96,14 +93,7 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
         await fetch('/api/adherence/log-dose', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            logId,
-            patientId,
-            prescriptionId: rx?.id,
-            status,
-            reason,
-            snoozeUntil,
-          }),
+          body: JSON.stringify({ logId, patientId, prescriptionId: rx?.id, status, reason, snoozeUntil }),
         });
       } catch {
         setLogs(initialLogs);
@@ -115,11 +105,8 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
   const toggleCollapse = (slot: TimeSlot) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
-      if (next.has(slot)) {
-        next.delete(slot);
-      } else {
-        next.add(slot);
-      }
+      if (next.has(slot)) next.delete(slot);
+      else next.add(slot);
       return next;
     });
   };
@@ -131,27 +118,51 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
 
   return (
     <div className="p-4 space-y-5 pb-6">
+      {/* Page header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">My Medications</h1>
-        <span className="text-sm text-gray-500">{dayLabel}</span>
+        <h1
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            letterSpacing: '-0.03em',
+            color: 'var(--ms-text-primary)',
+          }}
+        >
+          My Medications
+        </h1>
+        <span style={{ fontSize: 13, color: 'var(--ms-text-secondary)' }}>{dayLabel}</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-semibold text-gray-900">Today's Progress</span>
-          <span className="text-gray-500">
+      {/* Progress card */}
+      <div
+        className="rounded-xl p-4 space-y-2"
+        style={{
+          backgroundColor: 'var(--ms-surface)',
+          boxShadow: 'var(--ms-shadow-sm)',
+          border: '1px solid var(--ms-border)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ms-text-primary)' }}>
+            Today's Progress
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--ms-text-secondary)' }}>
             {takenCount} of {totalCount} doses taken
           </span>
         </div>
-        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-2.5 rounded-full overflow-hidden"
+          style={{ backgroundColor: 'var(--ms-surface-raised)' }}
+        >
           <div
-            className="h-full bg-[#0D6B5E] rounded-full transition-all duration-700"
-            style={{ width: `${progressPct}%` }}
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${progressPct}%`, backgroundColor: 'var(--ms-primary)' }}
           />
         </div>
-        <p className="text-xs text-gray-400">{progressPct}% complete</p>
+        <p style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}>{progressPct}% complete</p>
       </div>
 
+      {/* Time slot sections */}
       {TIME_SLOTS.map(({ slot, label, icon, range }) => {
         const items = logsBySlot[slot];
         const allTaken = items.length > 0 && items.every((i) => i.log.status === 'taken');
@@ -165,13 +176,18 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
               className="w-full flex items-center gap-2 text-left"
             >
               <span className="text-lg">{icon}</span>
-              <span className="text-sm font-semibold text-gray-700">{label}</span>
-              <span className="text-xs text-gray-400">{range}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ms-text-secondary)' }}>
+                {label}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}>{range}</span>
               {allTaken && (
-                <CheckCircle2 className="size-4 text-green-500 ml-auto shrink-0" />
+                <CheckCircle2
+                  className="size-4 ml-auto shrink-0"
+                  style={{ color: 'var(--ms-ok)' }}
+                />
               )}
               {items.length > 0 && !allTaken && (
-                <span className="ml-auto text-xs text-gray-400">
+                <span className="ml-auto" style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}>
                   {items.filter((i) => i.log.status === 'taken').length}/{items.length}
                 </span>
               )}
@@ -180,7 +196,12 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
             {!isCollapsed && (
               <>
                 {items.length === 0 ? (
-                  <p className="text-xs text-gray-400 ml-7">No medications scheduled</p>
+                  <p
+                    className="ml-7"
+                    style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}
+                  >
+                    No medications scheduled
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {items.map(({ prescription, log }) => (
@@ -197,7 +218,10 @@ export function MedicationTimeline({ prescriptions, adherenceLogs: initialLogs, 
             )}
 
             {isCollapsed && items.length > 0 && (
-              <p className="text-xs text-green-600 ml-7 font-medium">
+              <p
+                className="ml-7 font-medium"
+                style={{ fontSize: 12, color: 'var(--ms-ok)' }}
+              >
                 All {items.length} dose{items.length > 1 ? 's' : ''} taken ✓
               </p>
             )}

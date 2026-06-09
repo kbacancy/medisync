@@ -40,12 +40,10 @@ export default async function PatientLayout({
 
   const patientId = patientRecord?.id ?? null;
 
-  // Determine role: prefer DB profile, fall back to JWT user_metadata.
-  const dbRole = profileData?.role as string | undefined;
-  const metaRole = user.user_metadata?.role as string | undefined;
-  const resolvedRole = dbRole ?? metaRole;
+  // Only trust the confirmed DB role — never fall back to user_metadata
+  // which can be updated by the client via supabase.auth.updateUser().
+  const resolvedRole = profileData?.role as string | undefined;
 
-  // Clinicians who reach a patient route get sent to their dashboard.
   if (resolvedRole === 'clinician' || resolvedRole === 'coordinator') {
     redirect('/dashboard');
   }
@@ -64,17 +62,18 @@ export default async function PatientLayout({
       <PatientHeader profile={profile} />
       <OfflineBanner />
       <InstallPrompt />
-      {/* Top padding = header (56px) + iOS status bar; bottom = tab bar (60px) + home indicator */}
+      {/* Top padding = header (56px) + iOS status bar; bottom = tab bar (49px) + home indicator */}
       <main
-        className="bg-[#F4F6F8] min-h-screen overflow-y-auto"
+        className="min-h-screen overflow-y-auto"
         style={{
+          backgroundColor: 'var(--ms-page)',
           paddingTop: 'calc(56px + env(safe-area-inset-top))',
-          paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
+          paddingBottom: 'calc(49px + env(safe-area-inset-bottom))',
         }}
       >
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
-      <TabBar />
+      <TabBar patientId={patientId} />
       <Toaster richColors position="top-center" />
       {/* Global realtime call alert — works on every patient page and covers
           iOS Safari where push notifications require standalone PWA mode */}

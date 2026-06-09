@@ -10,14 +10,14 @@ import { InventoryBar } from './InventoryBar';
 import { queueAction } from '@/lib/offline/syncQueue';
 import type { PrescriptionWithDispense, AdherenceLog } from '@/types';
 
-const CATEGORY_COLORS: Record<string, string> = {
-  cardiovascular: 'bg-red-100 text-red-600',
-  diabetes: 'bg-blue-100 text-blue-600',
-  antihypertensive: 'bg-purple-100 text-purple-600',
-  antibiotic: 'bg-orange-100 text-orange-600',
-  thyroid: 'bg-pink-100 text-pink-600',
-  respiratory: 'bg-sky-100 text-sky-600',
-  default: 'bg-[#0D6B5E]/10 text-[#0D6B5E]',
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  cardiovascular:    { bg: 'rgba(220,38,38,0.08)',    text: '#DC2626' },
+  diabetes:          { bg: 'rgba(59,130,246,0.08)',   text: '#2563EB' },
+  antihypertensive:  { bg: 'rgba(124,58,237,0.08)',   text: '#7C3AED' },
+  antibiotic:        { bg: 'rgba(234,88,12,0.08)',    text: '#EA580C' },
+  thyroid:           { bg: 'rgba(219,39,119,0.08)',   text: '#DB2777' },
+  respiratory:       { bg: 'rgba(14,165,233,0.08)',   text: '#0EA5E9' },
+  default:           { bg: 'rgba(26,122,94,0.08)',    text: '#1A7A5E' },
 };
 
 function getDosesPerDay(frequency: string): number {
@@ -39,24 +39,35 @@ function StatusBadge({ log, actualTime, snoozeTime }: StatusBadgeProps) {
     case 'taken':
       return (
         <div className="text-right shrink-0">
-          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-semibold px-2 py-1 rounded-full">
+          <span
+            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full"
+            style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--ms-ok)' }}
+          >
             <CheckCircle className="size-3" />
             Taken ✓
           </span>
           {actualTime && (
-            <p className="text-[10px] text-gray-400 mt-0.5 text-right">at {actualTime}</p>
+            <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--ms-text-tertiary)' }}>
+              at {actualTime}
+            </p>
           )}
         </div>
       );
     case 'skipped':
       return (
         <div className="text-right shrink-0">
-          <span className="inline-flex items-center gap-1 bg-red-100 text-red-600 text-xs font-semibold px-2 py-1 rounded-full">
+          <span
+            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full"
+            style={{ backgroundColor: 'rgba(220,38,38,0.08)', color: 'var(--ms-critical)' }}
+          >
             <XCircle className="size-3" />
             Skipped
           </span>
           {log.skip_reason && (
-            <p className="text-[10px] text-red-400 mt-0.5 text-right max-w-[100px] break-words">
+            <p
+              className="text-[10px] mt-0.5 text-right max-w-[100px] break-words"
+              style={{ color: 'var(--ms-critical)' }}
+            >
               {log.skip_reason}
             </p>
           )}
@@ -65,18 +76,30 @@ function StatusBadge({ log, actualTime, snoozeTime }: StatusBadgeProps) {
     case 'snoozed':
       return (
         <div className="text-right shrink-0">
-          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-1 rounded-full">
+          <span
+            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full"
+            style={{ backgroundColor: 'rgba(217,119,6,0.1)', color: 'var(--ms-warn)' }}
+          >
             <Clock className="size-3" />
             Snoozed
           </span>
           {snoozeTime && (
-            <p className="text-[10px] text-amber-500 mt-0.5 text-right">Remind at {snoozeTime}</p>
+            <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--ms-warn)' }}>
+              Remind at {snoozeTime}
+            </p>
           )}
         </div>
       );
     case 'missed':
       return (
-        <span className="inline-flex items-center border border-red-400 text-red-500 text-xs font-semibold px-2 py-1 rounded-full shrink-0">
+        <span
+          className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full shrink-0"
+          style={{
+            border: '1px solid rgba(220,38,38,0.3)',
+            backgroundColor: 'rgba(220,38,38,0.06)',
+            color: 'var(--ms-critical)',
+          }}
+        >
           Missed
         </span>
       );
@@ -108,7 +131,7 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
   ) {
     if (!navigator.onLine) {
       const actionType =
-        status === 'taken' ? 'log-dose' : status === 'skipped' ? 'skip-dose' : 'snooze-dose'
+        status === 'taken' ? 'log-dose' : status === 'skipped' ? 'skip-dose' : 'snooze-dose';
       queueAction({
         type: actionType,
         payload: {
@@ -121,14 +144,14 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
           snoozeUntil,
         },
         timestamp: new Date().toISOString(),
-      })
-      return
+      });
+      return;
     }
-    await onStatusChange(logId, status, reason, snoozeUntil)
+    await onStatusChange(logId, status, reason, snoozeUntil);
   }
 
   const categoryKey = prescription.medication_category ?? 'default';
-  const iconColor = CATEGORY_COLORS[categoryKey] ?? CATEGORY_COLORS.default;
+  const iconStyle = CATEGORY_COLORS[categoryKey] ?? CATEGORY_COLORS.default;
 
   const scheduledTime = format(new Date(adherenceLog.scheduled_time), 'h:mm a');
   const actualTime = adherenceLog.actual_time
@@ -146,28 +169,37 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
     ? Math.floor((latestDispense.remaining_count ?? 0) / getDosesPerDay(prescription.frequency))
     : 0;
 
-  const borderClass = {
-    pending: 'border-l-4 border-l-[#0D6B5E]',
-    taken: 'border-l-4 border-l-green-500 bg-green-50',
-    skipped: 'border-l-4 border-l-red-400 bg-red-50 opacity-75',
-    snoozed: 'border-l-4 border-l-amber-400 bg-amber-50',
-    missed: 'border-l-4 border-l-red-500 opacity-60',
-    late: 'border-l-4 border-l-orange-400',
-  }[adherenceLog.status] ?? '';
+  const statusBorderColor = {
+    pending:  'var(--ms-primary)',
+    taken:    'var(--ms-ok)',
+    skipped:  'var(--ms-critical)',
+    snoozed:  'var(--ms-warn)',
+    missed:   'var(--ms-critical)',
+    late:     'var(--ms-warn)',
+  }[adherenceLog.status] ?? 'var(--ms-primary)';
+
+  const statusBg = {
+    taken:   'rgba(16,185,129,0.03)',
+    skipped: 'rgba(220,38,38,0.03)',
+    snoozed: 'rgba(217,119,6,0.04)',
+    missed:  'rgba(220,38,38,0.03)',
+  }[adherenceLog.status as string] ?? 'var(--ms-surface)';
 
   return (
     <>
       <div
-        className={cn(
-          'bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex gap-3',
-          borderClass
-        )}
+        className={cn('rounded-xl p-4 flex gap-3')}
+        style={{
+          backgroundColor: statusBg,
+          boxShadow: 'var(--ms-shadow-sm)',
+          border: '1px solid var(--ms-border)',
+          borderLeft: `4px solid ${statusBorderColor}`,
+          opacity: adherenceLog.status === 'skipped' || adherenceLog.status === 'missed' ? 0.72 : 1,
+        }}
       >
         <div
-          className={cn(
-            'size-10 rounded-full flex items-center justify-center shrink-0 mt-0.5',
-            iconColor
-          )}
+          className="size-10 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+          style={{ backgroundColor: iconStyle.bg, color: iconStyle.text }}
         >
           <Pill className="size-5" />
         </div>
@@ -175,10 +207,13 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-base leading-tight truncate">
+              <p
+                className="font-bold leading-tight truncate"
+                style={{ fontSize: 16, color: 'var(--ms-text-primary)' }}
+              >
                 {prescription.medication_name}
               </p>
-              <p className="text-sm text-gray-500">
+              <p style={{ fontSize: 13, color: 'var(--ms-text-secondary)' }}>
                 {prescription.dosage} · {prescription.form ?? 'Tablet'}
               </p>
             </div>
@@ -186,10 +221,12 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
           </div>
 
           {prescription.instructions && (
-            <p className="text-xs text-gray-400 leading-relaxed">{prescription.instructions}</p>
+            <p className="leading-relaxed" style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}>
+              {prescription.instructions}
+            </p>
           )}
 
-          <p className="text-xs text-gray-400">Scheduled {scheduledTime}</p>
+          <p style={{ fontSize: 12, color: 'var(--ms-text-tertiary)' }}>Scheduled {scheduledTime}</p>
 
           {latestDispense && (
             <InventoryBar
@@ -207,7 +244,8 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
               <button
                 type="button"
                 onClick={() => handleStatusChange(adherenceLog.id, 'taken')}
-                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] bg-[#0D6B5E] text-white text-sm font-semibold rounded-lg active:scale-95 transition-transform"
+                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] text-white text-sm font-semibold rounded-xl active:scale-95 transition-transform"
+                style={{ backgroundColor: 'var(--ms-primary)' }}
               >
                 <CheckCircle className="size-4" />
                 Take
@@ -215,7 +253,12 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
               <button
                 type="button"
                 onClick={() => setSkipOpen(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] border border-gray-300 text-gray-700 text-sm font-medium rounded-lg active:scale-95 transition-transform hover:bg-gray-50"
+                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] text-sm font-medium rounded-xl active:scale-95 transition-transform"
+                style={{
+                  border: '1px solid var(--ms-border-strong)',
+                  color: 'var(--ms-text-secondary)',
+                  backgroundColor: 'var(--ms-surface)',
+                }}
               >
                 <XCircle className="size-4" />
                 Skip
@@ -223,7 +266,12 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
               <button
                 type="button"
                 onClick={() => setSnoozeOpen(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] border border-gray-300 text-gray-700 text-sm font-medium rounded-lg active:scale-95 transition-transform hover:bg-gray-50"
+                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] text-sm font-medium rounded-xl active:scale-95 transition-transform"
+                style={{
+                  border: '1px solid var(--ms-border-strong)',
+                  color: 'var(--ms-text-secondary)',
+                  backgroundColor: 'var(--ms-surface)',
+                }}
               >
                 <Clock className="size-4" />
                 Snooze
@@ -241,7 +289,6 @@ export function DoseCard({ prescription, adherenceLog, onStatusChange }: Props) 
           await handleStatusChange(adherenceLog.id, 'skipped', reason);
         }}
       />
-
       <SnoozeModal
         open={snoozeOpen}
         onClose={() => setSnoozeOpen(false)}
