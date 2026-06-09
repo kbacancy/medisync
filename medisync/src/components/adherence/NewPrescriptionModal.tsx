@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -80,8 +80,6 @@ export function NewPrescriptionModal({
   const [drugSuggestions, setDrugSuggestions] = useState<DrugEntry[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const drugInputRef = useRef<HTMLInputElement>(null)
-
   const {
     register,
     handleSubmit,
@@ -245,7 +243,6 @@ export function NewPrescriptionModal({
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400 pointer-events-none" />
                 <input
                   id="drugName"
-                  ref={drugInputRef}
                   {...register('drugName')}
                   onChange={(e) => handleDrugInput(e.target.value)}
                   onKeyDown={handleDrugKeyDown}
