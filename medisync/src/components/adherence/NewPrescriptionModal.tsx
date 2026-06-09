@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
+import { searchDrugs, type DrugEntry } from '@/lib/drugs/catalogue'
 import {
   Dialog,
   DialogContent,
@@ -47,12 +48,6 @@ const TIME_OF_DAY_OPTIONS = [
   { id: 'bedtime', label: 'Bedtime' },
 ]
 
-const DRUG_SUGGESTIONS = [
-  'Lisinopril', 'Metformin', 'Atorvastatin', 'Amlodipine', 'Metoprolol',
-  'Omeprazole', 'Losartan', 'Simvastatin', 'Sertraline', 'Warfarin',
-  'Aspirin', 'Amiodarone', 'Tramadol', 'Ciprofloxacin', 'Tizanidine',
-  'Verapamil', 'Potassium Chloride',
-]
 
 interface DDIResult {
   hasSevereInteraction?: boolean
@@ -82,8 +77,10 @@ export function NewPrescriptionModal({
   const [submitting, setSubmitting] = useState(false)
   const [ddiWarning, setDdiWarning] = useState<DDIResult | null>(null)
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null)
-  const [drugSuggestions, setDrugSuggestions] = useState<string[]>([])
+  const [drugSuggestions, setDrugSuggestions] = useState<DrugEntry[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const drugInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -109,14 +106,34 @@ export function NewPrescriptionModal({
 
   function handleDrugInput(value: string) {
     setValue('drugName', value)
-    if (value.length >= 2) {
-      const matches = DRUG_SUGGESTIONS.filter((d) =>
-        d.toLowerCase().startsWith(value.toLowerCase())
-      )
-      setDrugSuggestions(matches)
-      setShowSuggestions(matches.length > 0)
-    } else {
+    const matches = searchDrugs(value)
+    setDrugSuggestions(matches)
+    setShowSuggestions(matches.length > 0)
+    setActiveIndex(-1)
+  }
+
+  function selectDrug(drug: DrugEntry) {
+    setValue('drugName', drug.name)
+    if (drug.defaultStrength) setValue('strength', drug.defaultStrength)
+    if (drug.defaultForm)     setValue('form', drug.defaultForm)
+    setShowSuggestions(false)
+    setActiveIndex(-1)
+  }
+
+  function handleDrugKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions || drugSuggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(i + 1, drugSuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault()
+      selectDrug(drugSuggestions[activeIndex])
+    } else if (e.key === 'Escape') {
       setShowSuggestions(false)
+      setActiveIndex(-1)
     }
   }
 
@@ -224,30 +241,48 @@ export function NewPrescriptionModal({
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-1">
             <div className="space-y-1.5 relative">
               <Label htmlFor="drugName">Drug Name</Label>
-              <input
-                id="drugName"
-                {...register('drugName')}
-                onChange={(e) => handleDrugInput(e.target.value)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                autoComplete="off"
-                placeholder="e.g. Lisinopril"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#0D6B5E] focus:border-[#0D6B5E] transition-colors"
-              />
-              {showSuggestions && (
-                <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  {drugSuggestions.map((drug) => (
-                    <button
-                      key={drug}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
-                      onClick={() => {
-                        setValue('drugName', drug)
-                        setShowSuggestions(false)
-                      }}
-                    >
-                      {drug}
-                    </button>
-                  ))}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  id="drugName"
+                  ref={drugInputRef}
+                  {...register('drugName')}
+                  onChange={(e) => handleDrugInput(e.target.value)}
+                  onKeyDown={handleDrugKeyDown}
+                  onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1) }, 160)}
+                  autoComplete="off"
+                  placeholder="Search medicine name…"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent pl-8 pr-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#0D6B5E] focus:border-[#0D6B5E] transition-colors"
+                />
+              </div>
+              {showSuggestions && drugSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
+                  <div className="max-h-56 overflow-y-auto">
+                    {drugSuggestions.map((drug, idx) => (
+                      <button
+                        key={drug.name}
+                        type="button"
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => selectDrug(drug)}
+                        className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-3 transition-colors border-b border-gray-50 last:border-0 ${
+                          activeIndex === idx ? 'bg-[#0D6B5E]/8' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-900 block truncate">{drug.name}</span>
+                          {drug.defaultStrength && (
+                            <span className="text-xs text-gray-400">{drug.defaultStrength}</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0 whitespace-nowrap">
+                          {drug.category}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400">↑↓ navigate · Enter to select · Esc to close</p>
+                  </div>
                 </div>
               )}
               {errors.drugName && (
