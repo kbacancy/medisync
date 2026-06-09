@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
   async headers() {
     const supabaseHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
       .replace(/^https?:\/\//, '')
+    const isDev = process.env.NODE_ENV === 'development'
 
     // CSP: allow connections to Supabase (REST + Realtime WS) and Jitsi Meet
     const csp = [
@@ -30,9 +31,10 @@ const nextConfig: NextConfig = {
       `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://meet.jit.si wss://meet.jit.si`,
       "frame-src https://meet.jit.si",
       `img-src 'self' data: https://${supabaseHost}`,
-      // Next.js requires 'unsafe-inline' for its runtime styles; scripts are
-      // server-rendered so 'unsafe-inline' for scripts is avoided where possible
-      "script-src 'self' 'unsafe-inline' https://meet.jit.si",
+      // React dev mode requires 'unsafe-eval' for stack trace reconstruction;
+      // Next.js requires 'unsafe-inline' for runtime styles.
+      // Neither unsafe-eval nor unsafe-inline are emitted in production builds.
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://meet.jit.si`,
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
       "object-src 'none'",
