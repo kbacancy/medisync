@@ -112,10 +112,8 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
-          <svg width="34" height="34" viewBox="0 0 52 52" fill="none" aria-hidden="true">
-            <rect width="52" height="52" rx="14" fill="rgba(255,255,255,0.15)" />
-            <path d="M26 12v28M12 26h28" stroke="white" strokeWidth="5.5" strokeLinecap="round" />
-          </svg>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/medisync-icon.svg" width="34" height="34" alt="MediSync" aria-hidden="true" />
           <span style={{ fontSize: 17, fontWeight: 600, color: 'white', letterSpacing: '-0.2px' }}>MediSync</span>
         </div>
 
@@ -288,10 +286,8 @@ export default function RegisterPage() {
 
         {/* Logo (shown only on mobile where left panel is hidden) */}
         <div className="flex lg:hidden flex-col items-center gap-3 mb-8">
-          <svg width="48" height="48" viewBox="0 0 52 52" fill="none" aria-hidden="true">
-            <rect width="52" height="52" rx="14" fill="#0A7B5C" />
-            <path d="M26 12v28M12 26h28" stroke="white" strokeWidth="5.5" strokeLinecap="round" />
-          </svg>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/medisync-icon.svg" width="48" height="48" alt="MediSync" aria-hidden="true" />
           <p style={{ fontSize: 20, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.2px' }}>MediSync</p>
         </div>
 

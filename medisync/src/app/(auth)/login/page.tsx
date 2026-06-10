@@ -119,10 +119,8 @@ export default function LoginPage() {
 
       {/* Logo lockup */}
       <div className="mb-8 flex flex-col items-center gap-3">
-        <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true">
-          <rect width="52" height="52" rx="14" fill="#0A7B5C" />
-          <path d="M26 12v28M12 26h28" stroke="white" strokeWidth="5.5" strokeLinecap="round" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/medisync-icon.svg" width="52" height="52" alt="MediSync" aria-hidden="true" />
         <p style={{ fontSize: 22, fontWeight: 500, color: 'var(--ms-text-primary)', letterSpacing: '-0.2px' }}>
           MediSync
         </p>

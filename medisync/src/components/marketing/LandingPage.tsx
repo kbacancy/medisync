@@ -104,10 +104,8 @@ const PLANS = [
 
 function LogoMark({ size = 20 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <rect width="20" height="20" rx="5" fill="#0A7B5C" />
-      <path d="M10 4v12M4 10h12" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/medisync-icon.svg" width={size} height={size} alt="MediSync" aria-hidden="true" />
   )
 }
 
